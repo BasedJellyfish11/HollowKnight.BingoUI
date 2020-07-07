@@ -25,3 +25,5 @@ Currently supports:
 - Rancid eggs, with the full amount obtained in the playthrough in parenthesis
 
 - Whispering roots
+
+- Lifeblood masks, which are only displayed if the current amount is over 6

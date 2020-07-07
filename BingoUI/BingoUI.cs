@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using GlobalEnums;
+using ModCommon;
 using Modding;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
@@ -11,6 +12,8 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Logger = Modding.Logger;
 using ModCommon.Util;
+
+
 
 namespace BingoUI
 
@@ -45,7 +48,7 @@ namespace BingoUI
             //Hook rando/plando due to it not using SetInt like everything else and instead calling trinket++ etc
             _randoPlandoCompatibility = new RandoPlandoCompatibility();
             _dreamPlantHook = new ILHook( typeof(DreamPlant).GetNestedType("<CheckOrbs>c__Iterator0", BindingFlags.NonPublic).GetMethod("MoveNext"),
-                                                TrackTrees);
+                TrackTrees);
             
             
             _coroutineStarterObject = new GameObject();
@@ -55,8 +58,8 @@ namespace BingoUI
             
 
             //Define anchor minimum and maximum so we can modify them in a loop and display the images systematically
-            Vector2 anchorMin = new Vector2(0.15f,0f);
-            Vector2 anchorMax = new Vector2(0.22f, 0.07f);
+            Vector2 anchorMin = new Vector2(0.08f,0f);
+            Vector2 anchorMax = new Vector2(0.15f, 0.07f);
             
             foreach (KeyValuePair<string, Sprite> pair in SeanprCore.ResourceHelper.GetSprites())
             {
@@ -129,6 +132,17 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups[intname]));
                     break;
                 
+                case "healthBlue":
+                    if(pd.healthBlue <= 6)
+                        break;
+                    Log("Updating Lifeblood");
+                    
+                    TextPanels["lifeblood"].GetComponent<Text>().text = $"{pd.healthBlue}";
+                    
+                    _coroutineStarter.StopCoroutine(FadeCanvas((CanvasGroups["lifeblood"])));
+                    _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["lifeblood"])));
+                    break;
+                
                 case "jinnEggsSold": case "rancidEggs":
                     Log("Updating rancid eggs");
                     
@@ -138,12 +152,12 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["regg"])));
                     break;
                 
-
                 case "grubsCollected":
                     Log("Updating grubs");
+                    
                     MapZone mapZone = SanitizeMapzone(GameManager.instance.sm.mapZone);
                     SETTINGS.SetInt(SETTINGS.GetInt(null,mapZone.ToString()) +1, mapZone.ToString());
-                    //SETTINGS.areaGrubs[mapZone]++; //add the rescued grub to the amount of grubs rescued in the area
+                    SETTINGS.areaGrubs[mapZone]++; //add the rescued grub to the amount of grubs rescued in the area. this doesn't actually work because the map won't save
                     
                     TextPanels["grub"].GetComponent<Text>().text = $"{pd.grubsCollected}({SETTINGS.GetInt(null,mapZone.ToString())})";
                     
@@ -163,6 +177,7 @@ namespace BingoUI
                 
                 case "ore": case"nailSmithUpgrades":
                     Log("Updating pale ore");
+                    
                     int oreFromUpgrades = (pd.nailSmithUpgrades * (pd.nailSmithUpgrades - 1)) / 2;
                     TextPanels["ore"].GetComponentInChildren<Text>().text = $"{pd.ore} ({pd.ore + oreFromUpgrades})";
                     
@@ -211,6 +226,7 @@ namespace BingoUI
                     _coroutineStarter.StopCoroutine(FadeCanvas( CanvasGroups["DreamPlant"]));
                     _coroutineStarter.StartCoroutine(FadeCanvas( CanvasGroups["DreamPlant"]));
                     break;
+                
                 case NonPdEnums.Cornifer:
                     Log("Updating cornifer");
                     
@@ -351,10 +367,11 @@ namespace BingoUI
 
         private MapZone SanitizeMapzone(MapZone mapZone)
         {
+ 
             switch (mapZone)
             {
                 case MapZone.CITY: case MapZone.LURIENS_TOWER: case MapZone.SOUL_SOCIETY: case MapZone.KINGS_STATION:
-                    return MapZone.CITY;
+                    return UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "Ruins2_11" ? MapZone.OUTSKIRTS : MapZone.CITY; //This is Tower of Love, which is City but is considered KE for rando goal purposes
                 case MapZone.CROSSROADS: case MapZone.SHAMAN_TEMPLE:
                     return MapZone.CROSSROADS;
                 case MapZone.BEASTS_DEN: case MapZone.DEEPNEST:
