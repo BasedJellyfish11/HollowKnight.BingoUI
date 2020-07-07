@@ -1,6 +1,8 @@
 ﻿using System;
 using GlobalEnums;
 using Modding;
+using SeanprCore;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace BingoUI
@@ -30,9 +32,11 @@ namespace BingoUI
       
         public int dreamTreesCompleted;
 
-            
+        
+        [SerializeField]
         public GrubMap areaGrubs = new GrubMap();
         
+        [SerializeField]
         public CorniferMap cornifers = new CorniferMap();
     }
     

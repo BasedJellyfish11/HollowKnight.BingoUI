@@ -85,6 +85,7 @@
     <EmbeddedResource Include="$(ProjectDir)Images/cornifer.png" />
     <EmbeddedResource Include="$(ProjectDir)Images/regg.png" />
     <EmbeddedResource Include="$(ProjectDir)Images/DreamPlant.png" />
+    <EmbeddedResource Include="$(ProjectDir)Images/lifeblood.png" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Copy SourceFiles="$(TargetDir)BingoUI.dll" DestinationFiles="$(ProjectDir)Compiled Binaries/BingoUI.dll" />
