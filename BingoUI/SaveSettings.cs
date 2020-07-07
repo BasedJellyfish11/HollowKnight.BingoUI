@@ -1,6 +1,7 @@
 ﻿using System;
 using GlobalEnums;
 using Modding;
+using UnityEngine.SceneManagement;
 
 namespace BingoUI
 {
@@ -29,24 +30,29 @@ namespace BingoUI
       
         public int dreamTreesCompleted;
 
-        /*
-         
-            public GrubMap areaGrubs = new GrubMap();
-        }
-    
-        [Serializable]
-        public class GrubMap : SerializableDictionary<MapZone, int>
-        {
-            public GrubMap()
-            {
-                foreach (MapZone mapZone in Enum.GetValues(typeof(MapZone)))
-                {
-                    Add(mapZone, 0);
-                    
-                }
-            }
             
-        */
+        public GrubMap areaGrubs = new GrubMap();
+        
+        public CorniferMap cornifers = new CorniferMap();
+    }
+    
+    [Serializable]
+    public class GrubMap : SerializableDictionary<MapZone, int>
+    {
+        public GrubMap()
+        {
+            foreach (MapZone mapZone in Enum.GetValues(typeof(MapZone)))
+            {
+                Add(mapZone, 0);
+                    
+            }
+        }
+    }
+
+    [Serializable]
+    public class CorniferMap : SerializableDictionary<Scene, bool>
+    {
+            
     }
         
 }

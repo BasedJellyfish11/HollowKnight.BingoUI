@@ -38,6 +38,12 @@
     <Reference Include="ItemChanger, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null">
       <HintPath>Assembly References\ItemChanger.dll</HintPath>
     </Reference>
+    <Reference Include="ModCommon, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null">
+      <HintPath>Assembly References\ModCommon.dll</HintPath>
+    </Reference>
+    <Reference Include="PlayMaker, Version=1.6.0.0, Culture=neutral, PublicKeyToken=null">
+      <HintPath>C:\Program Files (x86)\GOG Galaxy\Games\Hollow Knight\hollow_knight_Data\Managed\PlayMaker.dll</HintPath>
+    </Reference>
     <Reference Include="RandomizerMod3.0, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null">
       <HintPath>Assembly References\RandomizerMod3.0.dll</HintPath>
     </Reference>

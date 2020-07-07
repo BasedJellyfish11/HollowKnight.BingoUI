@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using GlobalEnums;
 using Modding;
@@ -11,6 +10,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Logger = Modding.Logger;
+using ModCommon.Util;
 
 namespace BingoUI
 
@@ -41,7 +41,7 @@ namespace BingoUI
             //Hooks
             ModHooks.Instance.SetPlayerIntHook += UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook += UpdateBoolCanvas;
-            UnityEngine.SceneManagement.SceneManager.activeSceneChanged += ResetSettings;
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded += PatchCornifer;
             //Hook rando/plando due to it not using SetInt like everything else and instead calling trinket++ etc
             _randoPlandoCompatibility = new RandoPlandoCompatibility();
             _dreamPlantHook = new ILHook( typeof(DreamPlant).GetNestedType("<CheckOrbs>c__Iterator0", BindingFlags.NonPublic).GetMethod("MoveNext"),
@@ -103,8 +103,7 @@ namespace BingoUI
             
            
         }
-
-       
+        
 
         /**
          * Check if the Int that changed is something to track, and if so display the canvas and the updated number
@@ -184,13 +183,7 @@ namespace BingoUI
 
             switch (originalset)
             {
-                case var _ when originalset.StartsWith("corn_") && originalset.EndsWith("Encountered"):
-                    amount = CountCorniferBools();
-                    TextPanels["cornifer"].GetComponentInChildren<Text>().text = amount.ToString();
-                    
-                    _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["cornifer"]));
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["cornifer"]));
-                    break;
+                
                 case var _ when originalset.StartsWith("map"):
                     amount = CountMapBools();
                     TextPanels["maps"].GetComponentInChildren<Text>().text = amount.ToString();
@@ -218,6 +211,15 @@ namespace BingoUI
                     _coroutineStarter.StopCoroutine(FadeCanvas( CanvasGroups["DreamPlant"]));
                     _coroutineStarter.StartCoroutine(FadeCanvas( CanvasGroups["DreamPlant"]));
                     break;
+                case NonPdEnums.Cornifer:
+                    Log("Updating cornifer");
+                    
+                    TextPanels["cornifer"].GetComponentInChildren<Text>().text = CountCorniferBools().ToString();
+                    
+                    _coroutineStarter.StopCoroutine(FadeCanvas( CanvasGroups["cornifer"]));
+                    _coroutineStarter.StartCoroutine(FadeCanvas( CanvasGroups["cornifer"]));
+                    break;
+                    
                     
             }
         }
@@ -245,10 +247,30 @@ namespace BingoUI
                 });
             }
         }
+        
+        private IEnumerator PatchCorniferDelay()
+        {
+            yield return null;
+            //Finds both kinds of cornifer locations in a possible scene and patches the FSM to increase the cornifer locations counter
+            GameObject[] cornifers = new GameObject[2];
+            cornifers[0] = GameObject.Find("Cornifer");
+            cornifers[1] = GameObject.Find("Cornifer Card");
+            
+            foreach (GameObject cornifer in cornifers)
+            {
+                if (cornifer == null)
+                    continue;
+                Log("Patching cornifer");
+                PlayMakerFSM fsm = cornifer.LocateMyFSM("Conversation Control");
+                fsm.InsertMethod("Box Down", 0,
+                    () => { UpdateCornifer(UnityEngine.SceneManagement.SceneManager.GetActiveScene());});
+            }
+            
+        }
 
         public override string GetVersion()
         {
-            return "1.0";
+            return "1.1";
         }
         
         public new static void Log(object message)
@@ -256,22 +278,7 @@ namespace BingoUI
             Logger.Log("[BingoUI] - " + message );
         }
         
-       
-        private void ResetSettings(Scene arg0, Scene arg1)
-        {
-            //API issue
-
-            if (arg1.name == Constants.MENU_SCENE)
-            {
-                
-                SETTINGS = new SaveSettings();
-                foreach (CanvasGroup cg in CanvasGroups.Values)
-                {
-                    _coroutineStarter.StartCoroutine(CanvasUtil.FadeOutCanvasGroup(cg));
-                }
-            }
-        }
-
+        
         #region UtilityMethods
 
         private static int CountMapBools()
@@ -312,22 +319,31 @@ namespace BingoUI
             return amount;
         }
         
+        private void PatchCornifer(Scene arg0, LoadSceneMode arg1)
+        {
+            _coroutineStarter.StartCoroutine(PatchCorniferDelay());
+        }
         
-        private static int CountCorniferBools()
+
+        private void UpdateCornifer(Scene scene)
+        {
+            if (!SETTINGS.cornifers.ContainsKey(scene))
+            {
+                SETTINGS.cornifers[scene] = true;
+                UpdateNonPdCanvas(NonPdEnums.Cornifer);
+            }
+            
+        }
+
+        private int CountCorniferBools()
         {
             int amount = 0;
 
-            
-            Type t = typeof(PlayerData);
-            IEnumerable<FieldInfo> fieldInfos = t.GetFields().Where(info => info.Name.StartsWith("corn_") &&
-                                                                            info.Name.EndsWith("Encountered"));
-
-            foreach (FieldInfo fieldInfo in fieldInfos)
+            foreach (bool cornifer in SETTINGS.cornifers.Values)
             {
-                if ((bool) fieldInfo.GetValue(PlayerData.instance))
+                if (cornifer)
                     amount++;
             }
-
             
             return amount;
             
