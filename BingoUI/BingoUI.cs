@@ -54,12 +54,17 @@ namespace BingoUI
             _coroutineStarterObject = new GameObject();
             _coroutineStarter = _coroutineStarterObject.AddComponent<NonBouncer>();
             UnityEngine.Object.DontDestroyOnLoad(_coroutineStarterObject);
-            Log("Creating Canvases");
             
+            
+            Log("Creating Canvases");
 
             //Define anchor minimum and maximum so we can modify them in a loop and display the images systematically
             Vector2 anchorMin = new Vector2(0.08f,0f);
             Vector2 anchorMax = new Vector2(0.15f, 0.07f);
+            
+            
+            GameObject canvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceCamera, new Vector2(1920, 1080));
+            UnityEngine.Object.DontDestroyOnLoad(canvas);
             
             foreach (KeyValuePair<string, Sprite> pair in SeanprCore.ResourceHelper.GetSprites())
             {
@@ -68,22 +73,22 @@ namespace BingoUI
                 string key = a[a.Length - 1];
                 
                 //Create a canvas and make it not show
-                GameObject canvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceCamera, new Vector2(1920, 1080));
-                UnityEngine.Object.DontDestroyOnLoad(canvas);
-                canvas.SetActive(false);
                 
-                //Add a canvas group so we can fade it in and out
-                canvas.AddComponent<CanvasGroup>();
-                CanvasGroup canvasGroup = canvas.GetComponent<CanvasGroup>();
-                canvasGroup.blocksRaycasts = false;
-                canvasGroup.interactable = false;
-                
-                //Add the group to the map to access it easier
-                CanvasGroups.Add(key, canvasGroup);
                 
                 //Create the image
                 GameObject canvasSprite = CanvasUtil.CreateImagePanel(canvas, pair.Value,
                     new CanvasUtil.RectData(Vector2.zero, Vector2.zero, anchorMin, anchorMax));
+                
+                //Add a canvas group so we can fade it in and out
+                canvasSprite.AddComponent<CanvasGroup>();
+                CanvasGroup canvasGroup = canvasSprite.GetComponent<CanvasGroup>();
+                canvasGroup.blocksRaycasts = false;
+                canvasGroup.interactable = false;
+                canvasGroup.alpha = 0f;
+                
+                //Add the group to the map to access it easier
+                CanvasGroups.Add(key, canvasGroup);
+                
                 
                 //Create text, parented to the image so it gets centered on it
                 GameObject text = CanvasUtil.CreateTextPanel(canvasSprite, "0", 20, TextAnchor.LowerCenter,
@@ -242,6 +247,7 @@ namespace BingoUI
 
         private  IEnumerator FadeCanvas(CanvasGroup canvasGroup)
         {
+            
             _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(canvasGroup));
 
             yield return new WaitForSeconds(4f);
