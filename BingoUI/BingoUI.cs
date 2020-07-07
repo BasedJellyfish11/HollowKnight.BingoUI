@@ -63,6 +63,7 @@ namespace BingoUI
             Vector2 anchorMax = new Vector2(0.15f, 0.07f);
             
             
+            //Create the canvas, make it not disappear on load
             GameObject canvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceCamera, new Vector2(1920, 1080));
             UnityEngine.Object.DontDestroyOnLoad(canvas);
             
@@ -71,9 +72,6 @@ namespace BingoUI
                 //Get file name without extension as key
                 string[] a = pair.Key.Split('.');
                 string key = a[a.Length - 1];
-                
-                //Create a canvas and make it not show
-                
                 
                 //Create the image
                 GameObject canvasSprite = CanvasUtil.CreateImagePanel(canvas, pair.Value,
@@ -137,6 +135,7 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups[intname]));
                     break;
                 
+                //Lifeblood
                 case "healthBlue":
                     if(pd.healthBlue <= 6)
                         break;
@@ -148,6 +147,7 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["lifeblood"])));
                     break;
                 
+                //eggs
                 case "jinnEggsSold": case "rancidEggs":
                     Log("Updating rancid eggs");
                     
@@ -157,6 +157,7 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["regg"])));
                     break;
                 
+                //grubs
                 case "grubsCollected":
                     Log("Updating grubs");
                     
@@ -170,6 +171,7 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas( CanvasGroups["grub"]));
                     break;
                 
+                //Devouts
                 case "killsSlashSpider":
                     Log("Updating devouts");
                     
@@ -180,6 +182,7 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas( CanvasGroups["devout"]));
                     break;
                 
+                //Pale ore
                 case "ore": case"nailSmithUpgrades":
                     Log("Updating pale ore");
                     
