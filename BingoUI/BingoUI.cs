@@ -17,11 +17,13 @@ using ModCommon.Util;
 
 namespace BingoUI
 {
-    public class BingoUI : Mod
+    public class BingoUI : Mod, ITogglableMod
     {
         private static readonly Dictionary<string, CanvasGroup> CanvasGroups = new Dictionary<string, CanvasGroup>();
         private static readonly Dictionary<string, GameObject> TextPanels = new Dictionary<string, GameObject>();
-        private GameObject _coroutineStarterObject;
+
+        private GameObject _canvas;
+        
         private NonBouncer _coroutineStarter;
 
         public override ModSettings SaveSettings
@@ -38,16 +40,16 @@ namespace BingoUI
 
         public override void Initialize()
         {
-            //Hooks
+            // Hooks
             ModHooks.Instance.SetPlayerIntHook += UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook += UpdateBoolCanvas;
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += PatchCornifer;
 
-            //Hook rando/plando due to it not using SetInt like everything else and instead calling trinket++ etc
+            // Hook rando/plando due to it not using SetInt like everything else and instead calling trinket++ etc
             _randoPlandoCompatibility = new RandoPlandoCompatibility();
+            
             RandoPlandoCompatibility.OnCorniferLocation += UpdateCornifer;
             RandoPlandoCompatibility.OnGrubLocation += DummyGrubSet;
-
 
             _dreamPlantHook = new ILHook
             (
@@ -55,10 +57,9 @@ namespace BingoUI
                 TrackTrees
             );
 
-
-            _coroutineStarterObject = new GameObject();
-            _coroutineStarter = _coroutineStarterObject.AddComponent<NonBouncer>();
-            UnityEngine.Object.DontDestroyOnLoad(_coroutineStarterObject);
+            var go = new GameObject();
+            _coroutineStarter = go.AddComponent<NonBouncer>();
+            UnityEngine.Object.DontDestroyOnLoad(go);
 
             Log("Creating Canvases");
 
@@ -66,10 +67,9 @@ namespace BingoUI
             Vector2 anchorMin = new Vector2(0.08f, 0f);
             Vector2 anchorMax = new Vector2(0.15f, 0.07f);
 
-
             //Create the canvas, make it not disappear on load
-            GameObject canvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceCamera, new Vector2(1920, 1080));
-            UnityEngine.Object.DontDestroyOnLoad(canvas);
+            _canvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceCamera, new Vector2(1920, 1080));
+            UnityEngine.Object.DontDestroyOnLoad(_canvas);
 
             foreach (KeyValuePair<string, Sprite> pair in SeanprCore.ResourceHelper.GetSprites())
             {
@@ -80,7 +80,7 @@ namespace BingoUI
                 //Create the image
                 GameObject canvasSprite = CanvasUtil.CreateImagePanel
                 (
-                    canvas,
+                    _canvas,
                     pair.Value,
                     new CanvasUtil.RectData(Vector2.zero, Vector2.zero, anchorMin, anchorMax)
                 );
@@ -119,12 +119,30 @@ namespace BingoUI
 
             Log("Canvas creation done");
         }
+        
+        public void Unload()
+        {
+            ModHooks.Instance.SetPlayerIntHook -= UpdateIntCanvas;
+            ModHooks.Instance.SetPlayerBoolHook -= UpdateBoolCanvas;
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded -= PatchCornifer;
 
-        private void DummyGrubSet(string location)
+            _randoPlandoCompatibility?.Dispose();
+            
+            // ReSharper disable DelegateSubtraction
+            RandoPlandoCompatibility.OnCorniferLocation -= UpdateCornifer;
+            RandoPlandoCompatibility.OnGrubLocation -= DummyGrubSet;
+            // ReSharper enable DelegateSubtraction
+
+            _dreamPlantHook?.Dispose();
+            
+            UnityEngine.Object.Destroy(_canvas);
+        }
+
+
+        private static void DummyGrubSet(string location)
         {
             PlayerData.instance.SetInt("grubsCollected", PlayerData.instance.grubsCollected);
         }
-
 
         /**
          * Check if the Int that changed is something to track, and if so display the canvas and the updated number
@@ -352,7 +370,7 @@ namespace BingoUI
             return _settings.Cornifers.Values.Count(c => c);
         }
 
-        private MapZone SanitizeMapzone(MapZone mapZone)
+        private static MapZone SanitizeMapzone(MapZone mapZone)
         {
             switch (mapZone)
             {
