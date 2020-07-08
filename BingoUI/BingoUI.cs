@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using GlobalEnums;
+using ModCommon;
 using Modding;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
@@ -12,6 +13,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Logger = Modding.Logger;
 using ModCommon.Util;
+
 
 namespace BingoUI
 {
@@ -40,10 +42,13 @@ namespace BingoUI
             ModHooks.Instance.SetPlayerIntHook += UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook += UpdateBoolCanvas;
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += PatchCornifer;
-            
+
             //Hook rando/plando due to it not using SetInt like everything else and instead calling trinket++ etc
             _randoPlandoCompatibility = new RandoPlandoCompatibility();
-            
+            RandoPlandoCompatibility.OnCorniferLocation += UpdateCornifer;
+            RandoPlandoCompatibility.OnGrubLocation += DummyGrubSet;
+
+
             _dreamPlantHook = new ILHook
             (
                 typeof(DreamPlant).GetNestedType("<CheckOrbs>c__Iterator0", BindingFlags.NonPublic).GetMethod("MoveNext"),
@@ -54,32 +59,23 @@ namespace BingoUI
             _coroutineStarterObject = new GameObject();
             _coroutineStarter = _coroutineStarterObject.AddComponent<NonBouncer>();
             UnityEngine.Object.DontDestroyOnLoad(_coroutineStarterObject);
+
             Log("Creating Canvases");
 
-
             //Define anchor minimum and maximum so we can modify them in a loop and display the images systematically
-            Vector2 anchorMin = new Vector2(0.15f, 0f);
-            Vector2 anchorMax = new Vector2(0.22f, 0.07f);
+            Vector2 anchorMin = new Vector2(0.08f, 0f);
+            Vector2 anchorMax = new Vector2(0.15f, 0.07f);
+
+
+            //Create the canvas, make it not disappear on load
+            GameObject canvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceCamera, new Vector2(1920, 1080));
+            UnityEngine.Object.DontDestroyOnLoad(canvas);
 
             foreach (KeyValuePair<string, Sprite> pair in SeanprCore.ResourceHelper.GetSprites())
             {
                 //Get file name without extension as key
                 string[] a = pair.Key.Split('.');
                 string key = a[a.Length - 1];
-
-                //Create a canvas and make it not show
-                GameObject canvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceCamera, new Vector2(1920, 1080));
-                UnityEngine.Object.DontDestroyOnLoad(canvas);
-                canvas.SetActive(false);
-
-                //Add a canvas group so we can fade it in and out
-                canvas.AddComponent<CanvasGroup>();
-                CanvasGroup canvasGroup = canvas.GetComponent<CanvasGroup>();
-                canvasGroup.blocksRaycasts = false;
-                canvasGroup.interactable = false;
-
-                //Add the group to the map to access it easier
-                CanvasGroups.Add(key, canvasGroup);
 
                 //Create the image
                 GameObject canvasSprite = CanvasUtil.CreateImagePanel
@@ -88,6 +84,17 @@ namespace BingoUI
                     pair.Value,
                     new CanvasUtil.RectData(Vector2.zero, Vector2.zero, anchorMin, anchorMax)
                 );
+
+                //Add a canvas group so we can fade it in and out
+                canvasSprite.AddComponent<CanvasGroup>();
+                CanvasGroup canvasGroup = canvasSprite.GetComponent<CanvasGroup>();
+                canvasGroup.blocksRaycasts = false;
+                canvasGroup.interactable = false;
+                canvasGroup.alpha = 0f;
+
+                //Add the group to the map to access it easier
+                CanvasGroups.Add(key, canvasGroup);
+
 
                 //Create text, parented to the image so it gets centered on it
                 GameObject text = CanvasUtil.CreateTextPanel
@@ -113,6 +120,12 @@ namespace BingoUI
             Log("Canvas creation done");
         }
 
+        private void DummyGrubSet(string location)
+        {
+            PlayerData.instance.SetInt("grubsCollected", PlayerData.instance.grubsCollected);
+        }
+
+
         /**
          * Check if the Int that changed is something to track, and if so display the canvas and the updated number
          */
@@ -137,6 +150,19 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups[intname]));
                     break;
 
+                //Lifeblood
+                case "healthBlue":
+                    if (pd.healthBlue <= 6)
+                        break;
+                    Log("Updating Lifeblood");
+
+                    TextPanels["lifeblood"].GetComponent<Text>().text = $"{pd.healthBlue}";
+
+                    _coroutineStarter.StopCoroutine(FadeCanvas((CanvasGroups["lifeblood"])));
+                    _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["lifeblood"])));
+                    break;
+
+                //eggs
                 case "jinnEggsSold":
                 case "rancidEggs":
                     Log("Updating rancid eggs");
@@ -147,7 +173,7 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["regg"])));
                     break;
 
-
+                //grubs
                 case "grubsCollected":
                 {
                     Log("Updating grubs");
@@ -185,9 +211,9 @@ namespace BingoUI
                 case "nailSmithUpgrades":
                 {
                     Log("Updating pale ore");
-                    
+
                     int oreFromUpgrades = (pd.nailSmithUpgrades * (pd.nailSmithUpgrades - 1)) / 2;
-                    
+
                     TextPanels["ore"].GetComponentInChildren<Text>().text = $"{pd.ore} ({pd.ore + oreFromUpgrades})";
 
                     _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["ore"]));
@@ -201,13 +227,13 @@ namespace BingoUI
         private void UpdateBoolCanvas(string orig, bool value)
         {
             PlayerData pd = PlayerData.instance;
-            
+
             pd.SetBoolInternal(orig, value);
 
             if (!orig.StartsWith("map")) return;
-            
+
             int amount = CountMapBools();
-            
+
             TextPanels["maps"].GetComponentInChildren<Text>().text = amount.ToString();
 
             _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["maps"]));
@@ -230,6 +256,7 @@ namespace BingoUI
                     _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["DreamPlant"]));
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["DreamPlant"]));
                     break;
+
                 case NonPdEnums.Cornifer:
                     Log("Updating cornifer");
 
@@ -280,7 +307,7 @@ namespace BingoUI
                 (
                     "Box Down",
                     0,
-                    () => { UpdateCornifer(UnityEngine.SceneManagement.SceneManager.GetActiveScene()); }
+                    () => { UpdateCornifer(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name); }
                 );
             }
         }
@@ -300,9 +327,9 @@ namespace BingoUI
         private static int CountMapBools()
         {
             IEnumerable<FieldInfo> mapBools = typeof(PlayerData)
-                                   .GetFields(BindingFlags.Public | BindingFlags.Instance)
-                                   .Where(x => x.FieldType == typeof(bool) && x.Name.StartsWith("map") && x.Name != nameof(PlayerData.mapAllRooms));
-            
+                                              .GetFields(BindingFlags.Public | BindingFlags.Instance)
+                                              .Where(x => x.FieldType == typeof(bool) && x.Name.StartsWith("map") && x.Name != nameof(PlayerData.mapAllRooms));
+
             return mapBools.Count(fi => (bool) fi.GetValue(PlayerData.instance));
         }
 
@@ -311,12 +338,11 @@ namespace BingoUI
             _coroutineStarter.StartCoroutine(PatchCorniferDelay());
         }
 
-
-        private void UpdateCornifer(Scene scene)
+        private void UpdateCornifer(string sceneName)
         {
-            if (_settings.Cornifers.ContainsKey(scene.name)) return;
+            if (_settings.Cornifers.ContainsKey(sceneName)) return;
 
-            _settings.Cornifers[scene.name] = true;
+            _settings.Cornifers[sceneName] = true;
 
             UpdateNonPdCanvas(NonPdEnums.Cornifer);
         }
@@ -334,7 +360,10 @@ namespace BingoUI
                 case MapZone.LURIENS_TOWER:
                 case MapZone.SOUL_SOCIETY:
                 case MapZone.KINGS_STATION:
-                    return MapZone.CITY;
+                    return UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "Ruins2_11"
+                        ? MapZone.OUTSKIRTS
+                        // This is Tower of Love, which is City but is considered KE for rando goal purposes
+                        : MapZone.CITY; 
                 case MapZone.CROSSROADS:
                 case MapZone.SHAMAN_TEMPLE:
                     return MapZone.CROSSROADS;
