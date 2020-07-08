@@ -54,7 +54,7 @@ namespace BingoUI
     }
 
     [Serializable]
-    public class CorniferMap : SerializableDictionary<Scene, bool>
+    public class CorniferMap : SerializableDictionary<string, bool>
     {
             
     }
