@@ -1,25 +1,26 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using ItemChanger;
 using ModCommon.Util;
+using MonoMod.RuntimeDetour;
+using RandomizerMod.Actions;
 using UnityEngine;
+using GiveItemActions = RandomizerMod.GiveItemActions;
+using UObject = UnityEngine.Object;
 
 namespace BingoUI
 {
-    using System;
-    using System.Reflection;
-    using MonoMod.RuntimeDetour;
-    
-    
-    /**Split into two classes because GetMethod iterates over the different methods in a class.
+    /**
+     * Split into two classes because GetMethod iterates over the different methods in a class.
      * If it was to find a Plando/Rando method without the dll being present it would die, even if it's not the requested method
      */
-    
     public class RandoPlandoCompatibility : IDisposable
     {
-        
-        private RandoCompatibility _rando;
-        private PlandoCompatibility _plando;
+        private readonly RandoCompatibility _rando;
+        private readonly PlandoCompatibility _plando;
 
         private static readonly Dictionary<string, Vector2> CorniferPositions = new Dictionary<string, Vector2>()
         {
@@ -34,20 +35,17 @@ namespace BingoUI
             ["Deepnest_East_03"] = new Vector2(7.6f, 60.8f),
             ["RestingGrounds_09"] = new Vector2(8.4f, 5.4f),
             ["Fungus1_24"] = new Vector2(53.4f, 22.7f),
-            //TODO deepnest
-            
-            
-
+            // TODO deepnest
         };
-        
+
         public delegate void OnCorniferLocationHandler(string scene);
-        
+
         public static OnCorniferLocationHandler OnCorniferLocation;
-        
+
         public delegate void OnGrubLocationHandler(string scene);
-        
+
         public static OnGrubLocationHandler OnGrubLocation;
-        
+
         public RandoPlandoCompatibility()
         {
             _rando = new RandoCompatibility();
@@ -59,101 +57,134 @@ namespace BingoUI
             _rando?.Dispose();
             _plando?.Dispose();
         }
-        
+
         private class RandoCompatibility : IDisposable
         {
             private Hook _setIntHook;
             private Hook _corniferLocationHook;
-            
+
             public RandoCompatibility() => HookRando();
 
             private void HookRando()
             {
-                //These GetMethod is the reason why this is split up into two private subclasses
-                
+                /*
+                 * MethodInfo::GetMethod mentioned above is split here.
+                 */
                 Type giveItemActions = Type.GetType("RandomizerMod.GiveItemActions, RandomizerMod3.0");
 
-                if (giveItemActions == null) return;
+                if (giveItemActions == null) 
+                    return;
 
                 BingoUI.Log("Hooking Rando");
-                
+
                 BingoUI.Log("Hooking GiveItemActions");
-                
+
                 _setIntHook = new Hook
                 (
-                    giveItemActions.GetMethod("GiveItem",BindingFlags.Public | BindingFlags.Static),
+                    giveItemActions.GetMethod("GiveItem", BindingFlags.Public | BindingFlags.Static),
                     typeof(RandoCompatibility).GetMethod(nameof(FixRando))
                 );
 
                 Type createNewShiny = Type.GetType("RandomizerMod.Actions.CreateNewShiny, RandomizerMod3.0");
 
+                if (createNewShiny == null)
+                    return;
+
                 BingoUI.Log("Hooking CreateNewShiny for Cornifer locations");
-                
+
                 _corniferLocationHook = new Hook
                 (
-                    createNewShiny.GetMethod("Process",BindingFlags.Public | BindingFlags.Instance),
-                    typeof(RandoCompatibility).GetMethod(nameof(PatchRandoCornifer)), this
+                    createNewShiny.GetMethod("Process", BindingFlags.Public | BindingFlags.Instance),
+                    typeof(RandoCompatibility).GetMethod(nameof(PatchRandoCornifer)),
+                    this
                 );
             }
 
-            public void PatchRandoCornifer(Action<RandomizerMod.Actions.RandomizerAction, string, Object> orig, 
-                RandomizerMod.Actions.RandomizerAction self, string scene, Object changeObj)
+            private static void PatchRandoCornifer
+            (
+                Action<RandomizerAction, string, object> orig,
+                RandomizerAction self,
+                string scene,
+                object changeObj
+            )
             {
-                
                 orig(self, scene, changeObj);
-                
-                if(!CorniferPositions.Keys.Contains(scene))
-                    return;
-                
-                Type createNewShiny = Type.GetType("RandomizerMod.Actions.CreateNewShiny, RandomizerMod3.0");
-                float x = (float)createNewShiny.GetField("_x", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(self);
-                float y = (float)createNewShiny.GetField("_y", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(self);
-               
-                if( (CorniferPositions[scene] -  new Vector2(x, y)).magnitude > 3.0f)
-                    return;
-               
-                BingoUI.Log("Patching rando cornifer");
-               
-                GameObject cornifer = GameObject.Find((string) createNewShiny
-                    .GetField("_newShinyName", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(self));
-                PlayMakerFSM shinyControl = cornifer.LocateMyFSM("Shiny Control");
-                shinyControl.InsertMethod("Hero Down", 0, () => OnCorniferLocation.Invoke(scene));
 
+                if (!CorniferPositions.Keys.Contains(scene))
+                    return;
+
+                Type createNewShiny = Type.GetType("RandomizerMod.Actions.CreateNewShiny, RandomizerMod3.0");
+
+                if (createNewShiny == null)
+                    return;
+
+                // ReSharper disable once PossibleNullReferenceException
+                float x = (float) createNewShiny.GetField("_x", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(self);
+                // ReSharper disable once PossibleNullReferenceException
+                float y = (float) createNewShiny.GetField("_y", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(self);
+
+                if ((CorniferPositions[scene] - new Vector2(x, y)).magnitude > 3.0f)
+                    return;
+
+                BingoUI.Log("Patching rando cornifer");
+
+                GameObject cornifer = GameObject.Find
+                (
+                    (string) createNewShiny
+                             .GetField("_newShinyName", BindingFlags.NonPublic | BindingFlags.Instance)?
+                             .GetValue(self)
+                );
+
+                PlayMakerFSM shinyControl = cornifer.LocateMyFSM("Shiny Control");
+
+                shinyControl.InsertMethod("Hero Down", 0, () => OnCorniferLocation.Invoke(scene));
             }
-            public static void FixRando(Action<RandomizerMod.GiveItemActions.GiveAction, string, string, int> orig, RandomizerMod.GiveItemActions.GiveAction action, string item, string location, int geo)
+
+            private static void FixRando
+            (
+                Action<GiveItemActions.GiveAction, string, string, int> orig,
+                GiveItemActions.GiveAction action,
+                string item,
+                string location,
+                int geo
+            )
             {
                 orig(action, item, location, geo);
-            
+
                 Type logicManager = Type.GetType("RandomizerMod.Randomization.LogicManager, RandomizerMod3.0");
-                MethodInfo getItemDef = logicManager.GetMethod("GetItemDef", BindingFlags.Static | BindingFlags.Public);
-                Object reqDef = getItemDef.Invoke(null,new object[]{location});
+
+                MethodInfo getItemDef = logicManager?.GetMethod("GetItemDef", BindingFlags.Static | BindingFlags.Public);
+
+                if (getItemDef == null)
+                    return;
+
+                object reqDef = getItemDef.Invoke(null, new object[] {location});
+
                 string pool = (string) reqDef.GetType().GetField("pool").GetValue(reqDef);
-                
-                if(pool == "Grub")
+
+                if (pool == "Grub")
                     OnGrubLocation?.Invoke(location);
 
-                //Literally just let rando do its thing and increment or whatever, then call SetInt so the hook runs
-            
+                // Literally just let rando do its thing and increment or whatever, then call SetInt so the hook runs
                 PlayerData pd = PlayerData.instance;
+
                 switch (action)
                 {
-                    case RandomizerMod.GiveItemActions.GiveAction.WanderersJournal:
+                    case GiveItemActions.GiveAction.WanderersJournal:
                         pd.SetInt("trinket1", pd.trinket1);
                         break;
-                    case RandomizerMod.GiveItemActions.GiveAction.HallownestSeal:
+                    case GiveItemActions.GiveAction.HallownestSeal:
                         pd.SetInt("trinket2", pd.trinket2);
                         break;
-                    case RandomizerMod.GiveItemActions.GiveAction.KingsIdol:
+                    case GiveItemActions.GiveAction.KingsIdol:
                         pd.SetInt("trinket3", pd.trinket3);
                         break;
-                    case RandomizerMod.GiveItemActions.GiveAction.ArcaneEgg:
+                    case GiveItemActions.GiveAction.ArcaneEgg:
                         pd.SetInt("trinket4", pd.trinket4);
                         break;
-                    case RandomizerMod.GiveItemActions.GiveAction.Grub:
+                    case GiveItemActions.GiveAction.Grub:
                         pd.SetInt("grubsCollected", pd.grubsCollected);
                         break;
-
-
                 }
             }
 
@@ -163,7 +194,7 @@ namespace BingoUI
                 _corniferLocationHook?.Dispose();
             }
         }
-        
+
         private class PlandoCompatibility : IDisposable
         {
             private readonly NonBouncer _coroutineStarter;
@@ -175,23 +206,24 @@ namespace BingoUI
             public PlandoCompatibility()
             {
                 CheckPlando();
-            
+
                 var go = new GameObject();
-                
+
                 _coroutineStarter = go.AddComponent<NonBouncer>();
-                
-                UnityEngine.Object.DontDestroyOnLoad(go);
+
+                UObject.DontDestroyOnLoad(go);
             }
-            
-            public void CheckPlando()
+
+            private void CheckPlando()
             {
-                /*Hooking plando is a huge hassle, because it has an internal hook we have to use
-                 *(and so need to split the actual hooking up into two in order for it to not die), and
-                 *because said hook is called before it actually does its thing so it needs to be delayed by a coroutine, which needs to not reference 
-                 *plando, else when it gets compiled into a class it dies
-                 * So Check=>Hook=>Start routine => delay => Actually do the hook stuff
+                /*
+                 * Hooking plando is a huge hassle, because it has an internal hook we have to use
+                 * (and so need to split the actual hooking up into two in order for it to not die), and
+                 * because said hook is called before it actually does its thing so it needs to be delayed by a coroutine, which needs to not reference 
+                 * plando, else when it gets compiled into a class it dies
+                 * So Check => Hook => Start routine => Delay => Actually do the hook stuff
                 */
-            
+
                 Type t = Type.GetType("ItemChanger.GiveItemActions, ItemChanger");
 
                 if (t == null) return;
@@ -203,96 +235,106 @@ namespace BingoUI
                 HookPlando();
             }
 
-        
+
             private void HookPlando()
             {
                 ItemChanger.GiveItemActions.OnGiveItem += FixPlandoDelayStarter;
-                
+
                 Type createNewShiny = Type.GetType("ItemChanger.Actions.CreateNewShiny, ItemChanger");
 
                 BingoUI.Log("Hooking CreateNewShiny for Cornifer locations");
-                
+
                 _corniferLocationHook = new Hook
                 (
-                    createNewShiny.GetMethod("Process",BindingFlags.Public | BindingFlags.Instance),
-                    typeof(PlandoCompatibility).GetMethod(nameof(PatchPlandoCornifer)), this
+                    createNewShiny?.GetMethod("Process", BindingFlags.Public | BindingFlags.Instance),
+                    typeof(PlandoCompatibility).GetMethod(nameof(PatchPlandoCornifer)),
+                    this
                 );
-                
             }
 
-        
-            private void FixPlandoDelayStarter(ItemChanger.Item item, ItemChanger.Location location)
+            private void FixPlandoDelayStarter(Item item, Location location)
             {
                 _coroutineStarter.StartCoroutine(FixPlandoDelay(item, location));
             }
 
-
-
-            private IEnumerator FixPlandoDelay(Object item, Object location)
+            private static IEnumerator FixPlandoDelay(object item, object location)
             {
-                //The hook is called at the start of the method instead of when the item is actually given, so wait for plando to do its thing
-                //Parameter has to be Object else it explodes because of ItemChanger parameter in the coroutine compiler generated class
-                
+                // The hook is called at the start of the method instead of when the item is actually given, so wait for plando to do its thing
+                // Parameter has to be object else it explodes because of ItemChanger field in the coroutine compiler generated class
+
                 yield return null;
 
                 FixPlando(item, location);
             }
-        
-            private void FixPlando(Object item, Object location){
-            
 
-                ItemChanger.Item castedItem = (ItemChanger.Item)item;
-                ItemChanger.Location castedLocation = (ItemChanger.Location) location;
-                if(castedLocation.pool == ItemChanger.Location.LocationPool.Grub)
+            private static void FixPlando(object item, object location)
+            {
+                var castedItem = (Item) item;
+                var castedLocation = (Location) location;
+
+                if (castedLocation.pool == Location.LocationPool.Grub)
                     OnGrubLocation?.Invoke(castedLocation.sceneName);
-            
+
                 PlayerData pd = PlayerData.instance;
-                ItemChanger.Item.GiveAction action = castedItem.action;
+                Item.GiveAction action = castedItem.action;
+
                 switch (action)
                 {
-                    case ItemChanger.Item.GiveAction.WanderersJournal:
+                    case Item.GiveAction.WanderersJournal:
                         pd.SetInt("trinket1", pd.trinket1);
                         break;
-                    case ItemChanger.Item.GiveAction.HallownestSeal:
+                    case Item.GiveAction.HallownestSeal:
                         pd.SetInt("trinket2", pd.trinket2);
                         break;
-                    case ItemChanger.Item.GiveAction.KingsIdol:
+                    case Item.GiveAction.KingsIdol:
                         pd.SetInt("trinket3", pd.trinket3);
                         break;
-                    case ItemChanger.Item.GiveAction.ArcaneEgg:
+                    case Item.GiveAction.ArcaneEgg:
                         pd.SetInt("trinket4", pd.trinket4);
                         break;
-                    case ItemChanger.Item.GiveAction.Grub:
+                    case Item.GiveAction.Grub:
                         pd.SetInt("grubsCollected", pd.grubsCollected);
                         break;
-                
                 }
-
             }
-            
-            public void PatchPlandoCornifer(Action<ItemChanger.Actions.RandomizerAction, string, Object> orig, 
-                ItemChanger.Actions.RandomizerAction self, string scene, Object changeObj)
+
+            private void PatchPlandoCornifer
+            (
+                Action<ItemChanger.Actions.RandomizerAction, string, object> orig,
+                ItemChanger.Actions.RandomizerAction self,
+                string scene,
+                object changeObj
+            )
             {
-                
                 orig(self, scene, changeObj);
-                
-                if(!CorniferPositions.Keys.Contains(scene))
+
+                if (!CorniferPositions.Keys.Contains(scene))
                     return;
-                
+
                 Type createNewShiny = Type.GetType("ItemChanger.Actions.CreateNewShiny, ItemChanger");
-                float x = (float)createNewShiny.GetField("_x", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(self);
-                float y = (float)createNewShiny.GetField("_y", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(self);
-               
-                if( (CorniferPositions[scene] -  new Vector2(x, y)).magnitude > 3.0f)
+
+                if (createNewShiny == null)
                     return;
-               
+
+                // ReSharper disable once PossibleNullReferenceException
+                float x = (float) createNewShiny.GetField("_x", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(self);
+                // ReSharper disable once PossibleNullReferenceException
+                float y = (float) createNewShiny.GetField("_y", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(self);
+
+                if ((CorniferPositions[scene] - new Vector2(x, y)).magnitude > 3.0f)
+                    return;
+
                 BingoUI.Log("Patching plando cornifer");
-               
-                GameObject cornifer = GameObject.Find((string) createNewShiny
-                    .GetField("_newShinyName", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(self));
+
+                GameObject cornifer = GameObject.Find
+                (
+                    (string) createNewShiny
+                             .GetField("_newShinyName", BindingFlags.NonPublic | BindingFlags.Instance)
+                             ?.GetValue(self)
+                );
+
                 PlayMakerFSM shinyControl = cornifer.LocateMyFSM("Shiny Control");
                 shinyControl.InsertMethod("Hero Down", 0, () => OnCorniferLocation?.Invoke(scene));
-
             }
 
             private void UnhookPlando()
@@ -304,17 +346,14 @@ namespace BingoUI
             public void Dispose()
             {
                 _coroutineStarter.StopAllCoroutines();
-                
-                UnityEngine.Object.Destroy(_coroutineStarter.gameObject);
-                
+
+                UObject.Destroy(_coroutineStarter.gameObject);
+
                 _corniferLocationHook?.Dispose();
-                
+
                 if (_plandoFound)
                     UnhookPlando();
             }
         }
-
     }
-    
-    
 }
