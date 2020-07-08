@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using GlobalEnums;
-using ModCommon;
 using Modding;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
@@ -13,7 +12,6 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Logger = Modding.Logger;
 using ModCommon.Util;
-
 
 namespace BingoUI
 {
@@ -119,7 +117,7 @@ namespace BingoUI
 
             Log("Canvas creation done");
         }
-        
+
         public void Unload()
         {
             ModHooks.Instance.SetPlayerIntHook -= UpdateIntCanvas;
@@ -198,14 +196,12 @@ namespace BingoUI
 
                     MapZone mapZone = SanitizeMapzone(GameManager.instance.sm.mapZone);
 
-                    string toStr = mapZone.ToString();
-
-                    if (_settings.AreaGrubs.TryGetValue(toStr, out int _))
-                        _settings.AreaGrubs[toStr] += 1;
+                    if (_settings.AreaGrubs.TryGetValue(mapZone, out int _))
+                        _settings.AreaGrubs[mapZone] += 1;
                     else
-                        _settings.AreaGrubs[toStr] = 1;
+                        _settings.AreaGrubs[mapZone] = 1;
 
-                    TextPanels["grub"].GetComponent<Text>().text = $"{pd.grubsCollected}({_settings.AreaGrubs[toStr]})";
+                    TextPanels["grub"].GetComponent<Text>().text = $"{pd.grubsCollected}({_settings.AreaGrubs[mapZone]})";
 
                     _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["grub"]));
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["grub"]));
@@ -404,7 +400,8 @@ namespace BingoUI
                 case MapZone.WATERWAYS:
                 case MapZone.GODSEEKER_WASTE:
                     return MapZone.WATERWAYS;
-                default: return mapZone;
+                default:
+                    return mapZone;
             }
         }
 

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using GlobalEnums;
 using Modding;
 using UnityEngine;
 
@@ -10,9 +12,9 @@ namespace BingoUI
         public int DreamTreesCompleted;
 
         [SerializeField]
-        public SerializableIntDictionary AreaGrubs = new SerializableIntDictionary();
+        public Dictionary<MapZone, int> AreaGrubs = new Dictionary<MapZone, int>();
 
         [SerializeField]
-        public SerializableBoolDictionary Cornifers = new SerializableBoolDictionary();
+        public Dictionary<string, bool> Cornifers = new Dictionary<string, bool>();
     }
 }
