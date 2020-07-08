@@ -47,6 +47,8 @@ namespace BingoUI
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += PatchCornifer;
             //Hook rando/plando due to it not using SetInt like everything else and instead calling trinket++ etc
             _randoPlandoCompatibility = new RandoPlandoCompatibility();
+            RandoPlandoCompatibility.OnCorniferLocation += UpdateCornifer;
+            RandoPlandoCompatibility.OnGrubLocation += DummyGrubSet;
             _dreamPlantHook = new ILHook( typeof(DreamPlant).GetNestedType("<CheckOrbs>c__Iterator0", BindingFlags.NonPublic).GetMethod("MoveNext"),
                 TrackTrees);
             
@@ -109,7 +111,12 @@ namespace BingoUI
             
            
         }
-        
+
+        private void DummyGrubSet(string location)
+        {
+            PlayerData.instance.SetInt("grubsCollected", PlayerData.instance.grubsCollected);
+        }
+
 
         /**
          * Check if the Int that changed is something to track, and if so display the canvas and the updated number
@@ -288,7 +295,7 @@ namespace BingoUI
                 Log("Patching cornifer");
                 PlayMakerFSM fsm = cornifer.LocateMyFSM("Conversation Control");
                 fsm.InsertMethod("Box Down", 0,
-                    () => { UpdateCornifer(UnityEngine.SceneManagement.SceneManager.GetActiveScene());});
+                    () => { UpdateCornifer(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);});
             }
             
         }
@@ -350,11 +357,11 @@ namespace BingoUI
         }
         
 
-        private void UpdateCornifer(Scene scene)
+        private void UpdateCornifer(string sceneName)
         {
-            if (!SETTINGS.cornifers.ContainsKey(scene))
+            if (!SETTINGS.cornifers.ContainsKey(sceneName))
             {
-                SETTINGS.cornifers[scene] = true;
+                SETTINGS.cornifers[sceneName] = true;
                 UpdateNonPdCanvas(NonPdEnums.Cornifer);
             }
             
