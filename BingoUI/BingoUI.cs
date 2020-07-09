@@ -20,6 +20,7 @@ namespace BingoUI
     {
         private static readonly Dictionary<string, CanvasGroup> CanvasGroups = new Dictionary<string, CanvasGroup>();
         private static readonly Dictionary<string, GameObject> TextPanels = new Dictionary<string, GameObject>();
+        private static readonly Dictionary<string, DateTime> NextCanvasFade = new Dictionary<string, DateTime>();
 
         private GameObject _canvas;
         
@@ -50,13 +51,16 @@ namespace BingoUI
             ModHooks.Instance.SetPlayerIntHook += UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook += UpdateBoolCanvas;
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += PatchCornifer;
+            On.UIManager.GoToPauseMenu += OnPause;
+            On.UIManager.UIClosePauseMenu += OnUnpause;
+            On.UIManager.ReturnToMainMenu += OnUnpauseQuitGame;
 
             // Hook rando/plando due to it not using SetInt like everything else and instead calling trinket++ etc
             _randoPlandoCompatibility = new RandoPlandoCompatibility();
             
             RandoPlandoCompatibility.OnCorniferLocation += UpdateCornifer;
-            RandoPlandoCompatibility.OnGrubLocation += DummyGrubSet;
-            RandoPlandoCompatibility.OnGrubObtain += OnGrubObtain;
+            RandoPlandoCompatibility.OnGrubLocation += DummyRandoAreaGrubSet;
+            RandoPlandoCompatibility.OnGrubObtain += OnRandoGrubObtain;
 
             _dreamPlantHook = new ILHook
             (
@@ -64,7 +68,7 @@ namespace BingoUI
                 TrackTrees
             );
 
-            var go = new GameObject();
+            GameObject go = new GameObject();
             _coroutineStarter = go.AddComponent<NonBouncer>();
             UnityEngine.Object.DontDestroyOnLoad(go);
 
@@ -98,7 +102,7 @@ namespace BingoUI
                 canvasGroup.blocksRaycasts = false;
                 canvasGroup.interactable = false;
                 if(!_globalSettings.alwaysDisplay)
-                    canvasGroup.alpha = 0f;
+                    canvasGroup.gameObject.SetActive(false);
 
                 // Add the group to the map to access it easier
                 CanvasGroups.Add(key, canvasGroup);
@@ -121,6 +125,8 @@ namespace BingoUI
 
                 // Easy access to the text panel
                 TextPanels.Add(key, text);
+                
+                NextCanvasFade.Add(key, DateTime.MinValue);
 
                 Log("Canvas with key " + key + " created");
             }
@@ -128,26 +134,24 @@ namespace BingoUI
             Log("Canvas creation done");
         }
 
-        private bool OnGrubObtain()
-        {
-            // Show the canvas ourselves as we're preventing SetInt.
-            UpdateGrubs(false);
-                   
-            // Make sure SetInt isn't called so the MapZone isn't incremented.
-            return false;
-        }
+
 
         public void Unload()
         {
             ModHooks.Instance.SetPlayerIntHook -= UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook -= UpdateBoolCanvas;
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= PatchCornifer;
+            On.UIManager.GoToPauseMenu -= OnPause;
+            On.UIManager.UIClosePauseMenu -= OnUnpause;
+            On.UIManager.ReturnToMainMenu -= OnUnpauseQuitGame;
+
 
             _randoPlandoCompatibility?.Dispose();
             
             // ReSharper disable DelegateSubtraction
             RandoPlandoCompatibility.OnCorniferLocation -= UpdateCornifer;
-            RandoPlandoCompatibility.OnGrubLocation -= DummyGrubSet;
+            RandoPlandoCompatibility.OnGrubLocation -= DummyRandoAreaGrubSet;
+            RandoPlandoCompatibility.OnGrubObtain -= OnRandoGrubObtain;
             // ReSharper enable DelegateSubtraction
 
             _dreamPlantHook?.Dispose();
@@ -156,7 +160,7 @@ namespace BingoUI
         }
 
 
-        private static void DummyGrubSet(string location)
+        private static void DummyRandoAreaGrubSet(string location)
         {
             PlayerData.instance.SetInt("grubsCollected", PlayerData.instance.grubsCollected);
         }
@@ -170,42 +174,55 @@ namespace BingoUI
 
             // Make sure to set the value
             pd.SetIntInternal(intname, value);
-
+            
             switch (intname)
             {
                 // Relics.
-                case var _ when intname.StartsWith("trinket"):
+                case var _ when intname.StartsWith("trinket"): 
+                    
                     Log("Updating " + intname);
                     int amount = pd.GetInt(intname);
                     int sold = pd.GetInt("sold" + char.ToUpper(intname[0]) + intname.Substring(1));
 
                     TextPanels[intname].GetComponent<Text>().text = $"{amount}({amount + sold})";
 
-                    _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups[intname]));
+                    if(DateTime.Now < NextCanvasFade[intname])
+                        return;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups[intname]));
+                    NextCanvasFade[intname] = DateTime.Now.AddSeconds(0.5f);
+                    
                     break;
 
                 // Lifeblood
                 case "healthBlue":
                     if (pd.healthBlue <= 6)
                         break;
+                    
                     Log("Updating Lifeblood");
 
                     TextPanels["lifeblood"].GetComponent<Text>().text = $"{pd.healthBlue}";
 
-                    _coroutineStarter.StopCoroutine(FadeCanvas((CanvasGroups["lifeblood"])));
+                    if(DateTime.Now < NextCanvasFade["lifeblood"])
+                        return;
                     _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["lifeblood"])));
+                    NextCanvasFade["lifeblood"] = DateTime.Now.AddSeconds(0.5f);
+
                     break;
 
                 // eggs
                 case "jinnEggsSold":
                 case "rancidEggs":
+                    
                     Log("Updating rancid eggs");
 
                     TextPanels["regg"].GetComponent<Text>().text = $"{pd.rancidEggs}({pd.rancidEggs + pd.jinnEggsSold})";
 
-                    _coroutineStarter.StopCoroutine(FadeCanvas((CanvasGroups["regg"])));
+                    if(DateTime.Now < NextCanvasFade["regg"])
+                        return;
+                    
                     _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["regg"])));
+                    NextCanvasFade["regg"] = DateTime.Now.AddSeconds(0.5f);
+
                     break;
 
                 // grubs
@@ -223,8 +240,11 @@ namespace BingoUI
                     // The kills start at 15 and count down since it's amount of kills left to get full journal
                     TextPanels["devout"].GetComponentInChildren<Text>().text = $"{15 - pd.killsSlashSpider}";
 
-                    _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["devout"]));
+                    if(DateTime.Now < NextCanvasFade["devout"])
+                        return;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["devout"]));
+                    NextCanvasFade["devout"] = DateTime.Now.AddSeconds(0.5f);
+
                     break;
                 }
                 
@@ -240,8 +260,11 @@ namespace BingoUI
 
                     TextPanels["ore"].GetComponentInChildren<Text>().text = $"{pd.ore} ({pd.ore + oreFromUpgrades})";
 
-                    _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["ore"]));
+                    if(DateTime.Now < NextCanvasFade["ore"])
+                        return;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["ore"]));
+                    NextCanvasFade["ore"] = DateTime.Now.AddSeconds(0.5f);
+
                     break;
                 }
             }
@@ -261,25 +284,34 @@ namespace BingoUI
             }
 
             TextPanels["grub"].GetComponent<Text>().text = $"{pd.grubsCollected}({_settings.AreaGrubs[mapZone]})";
-
-            _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["grub"]));
+            
+            if (DateTime.Now < NextCanvasFade["grub"])
+                return;
             _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["grub"]));
+            NextCanvasFade["grub"] = DateTime.Now.AddSeconds(0.5f);
         }
 
         private void UpdateBoolCanvas(string orig, bool value)
         {
+            
+            // The only bool canvas left is maps, so the old switch was deprecated by 56
+            
             PlayerData pd = PlayerData.instance;
 
             pd.SetBoolInternal(orig, value);
 
+            
             if (!orig.StartsWith("map")) return;
 
             int amount = CountMapBools();
 
             TextPanels["maps"].GetComponentInChildren<Text>().text = amount.ToString();
 
-            _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["maps"]));
+            if(DateTime.Now < NextCanvasFade["maps"])
+                return;
             _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["maps"]));
+            NextCanvasFade["maps"] = DateTime.Now.AddSeconds(0.5f);
+
         }
 
         private void UpdateNonPdCanvas(NonPdEnums enums)
@@ -287,6 +319,7 @@ namespace BingoUI
             switch (enums)
             {
                 case NonPdEnums.DreamPlant:
+
                     Log("Updating dream trees");
 
                     // The kills start at 15 and count down since it's amount of kills left to get full journal
@@ -294,17 +327,24 @@ namespace BingoUI
                     _settings.DreamTreesCompleted++;
                     TextPanels["DreamPlant"].GetComponentInChildren<Text>().text = $"{_settings.DreamTreesCompleted}";
 
-                    _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["DreamPlant"]));
+                    if(DateTime.Now < NextCanvasFade["DreamPlant"])
+                        return;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["DreamPlant"]));
+                    NextCanvasFade["DreamPlant"] = DateTime.Now.AddSeconds(0.5f);
+
                     break;
 
                 case NonPdEnums.Cornifer:
+                    
                     Log("Updating cornifer");
 
                     TextPanels["cornifer"].GetComponentInChildren<Text>().text = CountCorniferBools().ToString();
 
-                    _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["cornifer"]));
+                    if(DateTime.Now < NextCanvasFade["cornifer"])
+                        return;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["cornifer"]));
+                    NextCanvasFade["cornifer"] = DateTime.Now.AddSeconds(0.5f);
+
                     break;
             }
         }
@@ -314,9 +354,10 @@ namespace BingoUI
             if (_globalSettings.alwaysDisplay)
                 yield break;
             
-            _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(canvasGroup));
+            if(!canvasGroup.gameObject.activeSelf) // Make an if in case it gets updated again while it's still displaying. This is also why we stop coroutine before calling it
+                _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(canvasGroup));
 
-            yield return new WaitForSecondsRealtime(4f);
+            yield return new WaitForSeconds(4f);
 
             _coroutineStarter.StartCoroutine(CanvasUtil.FadeOutCanvasGroup(canvasGroup));
         }
@@ -348,7 +389,6 @@ namespace BingoUI
                 if (cornifer == null)
                     continue;
                 Log("Patching cornifer");
-                Log(cornifer.transform.position);
                 PlayMakerFSM fsm = cornifer.LocateMyFSM("Conversation Control");
                 fsm.InsertMethod
                 (
@@ -358,10 +398,52 @@ namespace BingoUI
                 );
             }
         }
+        
+        private IEnumerator OnPause(On.UIManager.orig_GoToPauseMenu orig, UIManager uiManager)
+        {
+            yield return orig(uiManager);
+
+            if (_globalSettings.alwaysDisplay)
+                yield break;
+            
+       
+            UpdateGrubs(false);
+            foreach (CanvasGroup canvasGroup in CanvasGroups.Values)
+            {
+                _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(canvasGroup));
+            }
+
+        }
+        
+        private void OnUnpause(On.UIManager.orig_UIClosePauseMenu origUIClosePauseMenu, UIManager self)
+        {
+            origUIClosePauseMenu(self);                    
+            if(_globalSettings.alwaysDisplay)
+                return;
+            
+            foreach (CanvasGroup canvasGroup in CanvasGroups.Values)
+            {
+                _coroutineStarter.StartCoroutine(CanvasUtil.FadeOutCanvasGroup(canvasGroup));
+            }
+        }
+
+        private IEnumerator OnUnpauseQuitGame(On.UIManager.orig_ReturnToMainMenu origReturnToMainMenu, UIManager self)
+        {
+            yield return origReturnToMainMenu(self);
+            if(_globalSettings.alwaysDisplay)
+                yield break;
+            
+            foreach (CanvasGroup canvasGroup in CanvasGroups.Values)
+            {
+                _coroutineStarter.StartCoroutine(CanvasUtil.FadeOutCanvasGroup(canvasGroup));
+            }
+            
+        }
+
 
         public override string GetVersion()
         {
-            return "1.1";
+            return "1.2";
         }
 
         public new static void Log(object message)
@@ -436,6 +518,15 @@ namespace BingoUI
                 default:
                     return mapZone;
             }
+        }
+        
+        private bool OnRandoGrubObtain()
+        {
+            // Show the canvas ourselves as we're preventing SetInt.
+            UpdateGrubs(false);
+                   
+            // Make sure SetInt isn't called so the MapZone isn't incremented.
+            return false;
         }
 
         #endregion
