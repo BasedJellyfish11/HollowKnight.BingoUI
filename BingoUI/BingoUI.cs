@@ -2,9 +2,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Management.Instrumentation;
 using System.Reflection;
 using GlobalEnums;
+using JetBrains.Annotations;
 using Modding;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
@@ -21,8 +21,6 @@ namespace BingoUI
         private static readonly Dictionary<string, CanvasGroup> CanvasGroups = new Dictionary<string, CanvasGroup>();
         private static readonly Dictionary<string, GameObject> TextPanels = new Dictionary<string, GameObject>();
 
-        internal static BingoUI Instance { get; private set; }
-
         private GameObject _canvas;
         
         private NonBouncer _coroutineStarter;
@@ -33,7 +31,14 @@ namespace BingoUI
             set => _settings = value as SaveSettings;
         }
 
+        public override ModSettings GlobalSettings
+        {
+            get => _globalSettings; 
+            set => _globalSettings = value as GlobalSettings;
+        }
+
         private SaveSettings _settings = new SaveSettings();
+        private GlobalSettings _globalSettings = new GlobalSettings();
 
         private RandoPlandoCompatibility _randoPlandoCompatibility;
 
@@ -41,8 +46,6 @@ namespace BingoUI
 
         public override void Initialize()
         {
-            Instance = this;
-            
             // Hooks
             ModHooks.Instance.SetPlayerIntHook += UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook += UpdateBoolCanvas;
@@ -67,21 +70,21 @@ namespace BingoUI
 
             Log("Creating Canvases");
 
-            //Define anchor minimum and maximum so we can modify them in a loop and display the images systematically
-            Vector2 anchorMin = new Vector2(0.08f, 0f);
-            Vector2 anchorMax = new Vector2(0.15f, 0.07f);
+            // Define anchor minimum and maximum so we can modify them in a loop and display the images systematically
+            Vector2 anchorMin = new Vector2(0.08f, 0.01f);
+            Vector2 anchorMax = new Vector2(0.15f, 0.08f);
 
-            //Create the canvas, make it not disappear on load
+            // Create the canvas, make it not disappear on load
             _canvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceCamera, new Vector2(1920, 1080));
             UnityEngine.Object.DontDestroyOnLoad(_canvas);
 
             foreach (KeyValuePair<string, Sprite> pair in SeanprCore.ResourceHelper.GetSprites())
             {
-                //Get file name without extension as key
+                // Get file name without extension as key
                 string[] a = pair.Key.Split('.');
                 string key = a[a.Length - 1];
 
-                //Create the image
+                // Create the image
                 GameObject canvasSprite = CanvasUtil.CreateImagePanel
                 (
                     _canvas,
@@ -89,18 +92,19 @@ namespace BingoUI
                     new CanvasUtil.RectData(Vector2.zero, Vector2.zero, anchorMin, anchorMax)
                 );
 
-                //Add a canvas group so we can fade it in and out
+                // Add a canvas group so we can fade it in and out
                 canvasSprite.AddComponent<CanvasGroup>();
                 CanvasGroup canvasGroup = canvasSprite.GetComponent<CanvasGroup>();
                 canvasGroup.blocksRaycasts = false;
                 canvasGroup.interactable = false;
-                canvasGroup.alpha = 0f;
+                if(!_globalSettings.alwaysDisplay)
+                    canvasGroup.alpha = 0f;
 
-                //Add the group to the map to access it easier
+                // Add the group to the map to access it easier
                 CanvasGroups.Add(key, canvasGroup);
 
 
-                //Create text, parented to the image so it gets centered on it
+                // Create text, parented to the image so it gets centered on it
                 GameObject text = CanvasUtil.CreateTextPanel
                 (
                     canvasSprite,
@@ -111,11 +115,11 @@ namespace BingoUI
                 );
                 text.AddComponent<Outline>();
 
-                //Increment the anchors so the next image isn't on top
+                // Increment the anchors so the next image isn't on top
                 anchorMin += new Vector2(0.07f, 0);
                 anchorMax += new Vector2(0.07f, 0);
 
-                //Easy access to the text panel
+                // Easy access to the text panel
                 TextPanels.Add(key, text);
 
                 Log("Canvas with key " + key + " created");
@@ -164,12 +168,12 @@ namespace BingoUI
         {
             PlayerData pd = PlayerData.instance;
 
-            //Make sure to set the value
+            // Make sure to set the value
             pd.SetIntInternal(intname, value);
 
             switch (intname)
             {
-                //Relics.
+                // Relics.
                 case var _ when intname.StartsWith("trinket"):
                     Log("Updating " + intname);
                     int amount = pd.GetInt(intname);
@@ -181,7 +185,7 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups[intname]));
                     break;
 
-                //Lifeblood
+                // Lifeblood
                 case "healthBlue":
                     if (pd.healthBlue <= 6)
                         break;
@@ -193,7 +197,7 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["lifeblood"])));
                     break;
 
-                //eggs
+                // eggs
                 case "jinnEggsSold":
                 case "rancidEggs":
                     Log("Updating rancid eggs");
@@ -204,7 +208,7 @@ namespace BingoUI
                     _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["regg"])));
                     break;
 
-                //grubs
+                // grubs
                 case "grubsCollected":
                 {
                     UpdateGrubs();
@@ -216,16 +220,19 @@ namespace BingoUI
                 {
                     Log("Updating devouts");
 
-                    //The kills start at 15 and count down since it's amount of kills left to get full journal
+                    // The kills start at 15 and count down since it's amount of kills left to get full journal
                     TextPanels["devout"].GetComponentInChildren<Text>().text = $"{15 - pd.killsSlashSpider}";
 
                     _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["devout"]));
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["devout"]));
                     break;
                 }
-
-                case "ore":
+                
                 case "nailSmithUpgrades":
+                    if(pd.nailSmithUpgrades == 1)
+                        break;
+                    goto case "ore";
+                case "ore":
                 {
                     Log("Updating pale ore");
 
@@ -282,7 +289,7 @@ namespace BingoUI
                 case NonPdEnums.DreamPlant:
                     Log("Updating dream trees");
 
-                    //The kills start at 15 and count down since it's amount of kills left to get full journal
+                    // The kills start at 15 and count down since it's amount of kills left to get full journal
 
                     _settings.DreamTreesCompleted++;
                     TextPanels["DreamPlant"].GetComponentInChildren<Text>().text = $"{_settings.DreamTreesCompleted}";
@@ -304,13 +311,17 @@ namespace BingoUI
 
         private IEnumerator FadeCanvas(CanvasGroup canvasGroup)
         {
+            if (_globalSettings.alwaysDisplay)
+                yield break;
+            
             _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(canvasGroup));
 
-            yield return new WaitForSeconds(4f);
+            yield return new WaitForSecondsRealtime(4f);
 
             _coroutineStarter.StartCoroutine(CanvasUtil.FadeOutCanvasGroup(canvasGroup));
         }
 
+        [UsedImplicitly]
         public void TrackTrees(ILContext il)
         {
             FieldInfo completedBool = typeof(DreamPlant).GetField("completed", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -326,7 +337,7 @@ namespace BingoUI
         private IEnumerator PatchCorniferDelay()
         {
             yield return null;
-            //Finds both kinds of cornifer locations in a possible scene and patches the FSM to increase the cornifer locations counter
+            // Finds both kinds of cornifer locations in a possible scene and patches the FSM to increase the cornifer locations counter
             GameObject[] cornifers = new GameObject[2];
             cornifers[0] = GameObject.Find("Cornifer");
             cornifers[1] = GameObject.Find("Cornifer Card");

@@ -3,17 +3,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using IL.HutongGames.PlayMaker.Actions;
-using InControl.NativeProfile;
 using ItemChanger;
 using JetBrains.Annotations;
 using ModCommon.Util;
-using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
-using On.InControl;
 using RandomizerMod.Actions;
 using UnityEngine;
-using UnityEngine.UI;
 using GiveItemActions = RandomizerMod.GiveItemActions;
 using UObject = UnityEngine.Object;
 
@@ -158,7 +153,6 @@ namespace BingoUI
             {
                 orig(action, item, location, geo);
                 
-                BingoUI.Log($"Item: {item}, Location: {location}");
 
                 Type logicManager = Type.GetType("RandomizerMod.Randomization.LogicManager, RandomizerMod3.0");
 
