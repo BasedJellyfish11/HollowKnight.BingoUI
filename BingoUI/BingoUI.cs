@@ -337,20 +337,22 @@ namespace BingoUI
         private IEnumerator PatchCorniferDelay()
         {
             yield return null;
-            // Finds both kinds of cornifer locations in a possible scene and patches the FSM to increase the cornifer locations counter
-            GameObject[] cornifers = new GameObject[2];
+            // Finds all kinds of cornifer locations in a possible scene and patches the FSM to increase the cornifer locations counter
+            GameObject[] cornifers = new GameObject[3];
             cornifers[0] = GameObject.Find("Cornifer");
-            cornifers[1] = GameObject.Find("Cornifer Card");
+            cornifers[1] = GameObject.Find("Cornifer Deepnest");
+            cornifers[2] = GameObject.Find("Cornifer Card");
 
             foreach (GameObject cornifer in cornifers)
             {
                 if (cornifer == null)
                     continue;
                 Log("Patching cornifer");
+                Log(cornifer.transform.position);
                 PlayMakerFSM fsm = cornifer.LocateMyFSM("Conversation Control");
                 fsm.InsertMethod
                 (
-                    "Box Down",
+                    "Box Up",
                     0,
                     () => { UpdateCornifer(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name); }
                 );

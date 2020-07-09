@@ -36,7 +36,8 @@ namespace BingoUI
             ["Deepnest_East_03"] = new Vector2(7.6f, 60.8f),
             ["RestingGrounds_09"] = new Vector2(8.4f, 5.4f),
             ["Fungus1_24"] = new Vector2(53.4f, 22.7f),
-            // TODO deepnest
+            ["Fungus2_25"] = new Vector2(49.2f, 23.9f),
+            ["Deepnest_01b"] = new Vector2(7.2f, 4.9f)
         };
 
         public delegate void OnCorniferLocationHandler(string scene);
