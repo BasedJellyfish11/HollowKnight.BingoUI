@@ -2,9 +2,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Management.Instrumentation;
 using System.Reflection;
 using GlobalEnums;
-using ModCommon;
 using Modding;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
@@ -14,13 +14,14 @@ using UnityEngine.UI;
 using Logger = Modding.Logger;
 using ModCommon.Util;
 
-
 namespace BingoUI
 {
     public class BingoUI : Mod, ITogglableMod
     {
         private static readonly Dictionary<string, CanvasGroup> CanvasGroups = new Dictionary<string, CanvasGroup>();
         private static readonly Dictionary<string, GameObject> TextPanels = new Dictionary<string, GameObject>();
+
+        internal static BingoUI Instance { get; private set; }
 
         private GameObject _canvas;
         
@@ -40,6 +41,8 @@ namespace BingoUI
 
         public override void Initialize()
         {
+            Instance = this;
+            
             // Hooks
             ModHooks.Instance.SetPlayerIntHook += UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook += UpdateBoolCanvas;
@@ -50,6 +53,7 @@ namespace BingoUI
             
             RandoPlandoCompatibility.OnCorniferLocation += UpdateCornifer;
             RandoPlandoCompatibility.OnGrubLocation += DummyGrubSet;
+            RandoPlandoCompatibility.OnGrubObtain += OnGrubObtain;
 
             _dreamPlantHook = new ILHook
             (
@@ -119,7 +123,16 @@ namespace BingoUI
 
             Log("Canvas creation done");
         }
-        
+
+        private bool OnGrubObtain()
+        {
+            // Show the canvas ourselves as we're preventing SetInt.
+            UpdateGrubs(false);
+                   
+            // Make sure SetInt isn't called so the MapZone isn't incremented.
+            return false;
+        }
+
         public void Unload()
         {
             ModHooks.Instance.SetPlayerIntHook -= UpdateIntCanvas;
@@ -194,21 +207,7 @@ namespace BingoUI
                 //grubs
                 case "grubsCollected":
                 {
-                    Log("Updating grubs");
-
-                    MapZone mapZone = SanitizeMapzone(GameManager.instance.sm.mapZone);
-
-                    string toStr = mapZone.ToString();
-
-                    if (_settings.AreaGrubs.TryGetValue(toStr, out int _))
-                        _settings.AreaGrubs[toStr] += 1;
-                    else
-                        _settings.AreaGrubs[toStr] = 1;
-
-                    TextPanels["grub"].GetComponent<Text>().text = $"{pd.grubsCollected}({_settings.AreaGrubs[toStr]})";
-
-                    _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["grub"]));
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["grub"]));
+                    UpdateGrubs();
 
                     break;
                 }
@@ -241,6 +240,24 @@ namespace BingoUI
             }
         }
 
+        private void UpdateGrubs(bool incArea = true)
+        {
+            PlayerData pd = PlayerData.instance;
+            
+            Log("Updating grubs");
+
+            MapZone mapZone = SanitizeMapzone(GameManager.instance.sm.mapZone);
+
+            if (incArea)
+            {
+                _settings.AreaGrubs[mapZone] += 1;
+            }
+
+            TextPanels["grub"].GetComponent<Text>().text = $"{pd.grubsCollected}({_settings.AreaGrubs[mapZone]})";
+
+            _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["grub"]));
+            _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["grub"]));
+        }
 
         private void UpdateBoolCanvas(string orig, bool value)
         {
@@ -257,7 +274,6 @@ namespace BingoUI
             _coroutineStarter.StopCoroutine(FadeCanvas(CanvasGroups["maps"]));
             _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["maps"]));
         }
-
 
         private void UpdateNonPdCanvas(NonPdEnums enums)
         {
@@ -404,7 +420,8 @@ namespace BingoUI
                 case MapZone.WATERWAYS:
                 case MapZone.GODSEEKER_WASTE:
                     return MapZone.WATERWAYS;
-                default: return mapZone;
+                default:
+                    return mapZone;
             }
         }
 
