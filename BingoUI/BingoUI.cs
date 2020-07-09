@@ -194,7 +194,7 @@ namespace BingoUI
                     break;
 
                 // Lifeblood
-                case "healthBlue":
+                case nameof(pd.healthBlue):
                     if (pd.healthBlue <= 6)
                         break;
                     
@@ -210,8 +210,8 @@ namespace BingoUI
                     break;
 
                 // eggs
-                case "jinnEggsSold":
-                case "rancidEggs":
+                case nameof(pd.jinnEggsSold):
+                case nameof(pd.rancidEggs):
                     
                     Log("Updating rancid eggs");
 
@@ -226,14 +226,14 @@ namespace BingoUI
                     break;
 
                 // grubs
-                case "grubsCollected":
+                case nameof(pd.grubsCollected):
                 {
                     UpdateGrubs();
 
                     break;
                 }
 
-                case "killsSlashSpider":
+                case nameof(pd.killsSlashSpider):
                 {
                     Log("Updating devouts");
 
@@ -248,11 +248,11 @@ namespace BingoUI
                     break;
                 }
                 
-                case "nailSmithUpgrades":
+                case nameof(pd.nailSmithUpgrades):
                     if(pd.nailSmithUpgrades == 1)
                         break;
-                    goto case "ore";
-                case "ore":
+                    goto case nameof(pd.ore);
+                case nameof(pd.ore):
                 {
                     Log("Updating pale ore");
 
@@ -448,7 +448,7 @@ namespace BingoUI
 
         public new static void Log(object message)
         {
-            Logger.Log("[BingoUI] - " + message);
+            Logger.Log($"[{nameof(BingoUI)}] - " + message);
         }
 
         #region UtilityMethods
