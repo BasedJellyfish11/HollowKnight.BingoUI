@@ -187,7 +187,7 @@ namespace BingoUI
                     TextPanels[intname].GetComponent<Text>().text = $"{amount}({amount + sold})";
 
                     if(DateTime.Now < NextCanvasFade[intname])
-                        return;
+                        break;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups[intname]));
                     NextCanvasFade[intname] = DateTime.Now.AddSeconds(0.5f);
                     
@@ -195,15 +195,12 @@ namespace BingoUI
 
                 // Lifeblood
                 case nameof(pd.healthBlue):
-                    if (pd.healthBlue <= 6)
-                        break;
-                    
                     Log("Updating Lifeblood");
 
                     TextPanels["lifeblood"].GetComponent<Text>().text = $"{pd.healthBlue}";
 
-                    if(DateTime.Now < NextCanvasFade["lifeblood"])
-                        return;
+                    if(DateTime.Now < NextCanvasFade["lifeblood"] || pd.healthBlue <= 6)
+                        break;
                     _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["lifeblood"])));
                     NextCanvasFade["lifeblood"] = DateTime.Now.AddSeconds(0.5f);
 
@@ -218,7 +215,7 @@ namespace BingoUI
                     TextPanels["regg"].GetComponent<Text>().text = $"{pd.rancidEggs}({pd.rancidEggs + pd.jinnEggsSold})";
 
                     if(DateTime.Now < NextCanvasFade["regg"])
-                        return;
+                        break;
                     
                     _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["regg"])));
                     NextCanvasFade["regg"] = DateTime.Now.AddSeconds(0.5f);
@@ -241,7 +238,7 @@ namespace BingoUI
                     TextPanels["devout"].GetComponentInChildren<Text>().text = $"{15 - pd.killsSlashSpider}";
 
                     if(DateTime.Now < NextCanvasFade["devout"])
-                        return;
+                        break;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["devout"]));
                     NextCanvasFade["devout"] = DateTime.Now.AddSeconds(0.5f);
 
@@ -261,7 +258,7 @@ namespace BingoUI
                     TextPanels["ore"].GetComponentInChildren<Text>().text = $"{pd.ore} ({pd.ore + oreFromUpgrades})";
 
                     if(DateTime.Now < NextCanvasFade["ore"])
-                        return;
+                        break;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["ore"]));
                     NextCanvasFade["ore"] = DateTime.Now.AddSeconds(0.5f);
 
@@ -328,7 +325,7 @@ namespace BingoUI
                     TextPanels["DreamPlant"].GetComponentInChildren<Text>().text = $"{_settings.DreamTreesCompleted}";
 
                     if(DateTime.Now < NextCanvasFade["DreamPlant"])
-                        return;
+                        break;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["DreamPlant"]));
                     NextCanvasFade["DreamPlant"] = DateTime.Now.AddSeconds(0.5f);
 
@@ -341,7 +338,7 @@ namespace BingoUI
                     TextPanels["cornifer"].GetComponentInChildren<Text>().text = CountCorniferBools().ToString();
 
                     if(DateTime.Now < NextCanvasFade["cornifer"])
-                        return;
+                        break;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["cornifer"]));
                     NextCanvasFade["cornifer"] = DateTime.Now.AddSeconds(0.5f);
 
