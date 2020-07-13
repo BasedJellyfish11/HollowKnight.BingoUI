@@ -66,7 +66,7 @@ namespace BingoUI
 
         private class RandoCompatibility : IDisposable
         {
-            private Hook _setIntHook;
+            private Hook _giveActionsSetIntHook;
             private Hook _corniferLocationHook;
 
             public RandoCompatibility() => HookRando();
@@ -78,15 +78,15 @@ namespace BingoUI
                  */
                 Type giveItemActions = Type.GetType("RandomizerMod.GiveItemActions, RandomizerMod3.0");
                 Type createNewShiny = Type.GetType("RandomizerMod.Actions.CreateNewShiny, RandomizerMod3.0");
-
-                if (giveItemActions == null || createNewShiny == null) 
+            
+                if (giveItemActions == null || createNewShiny == null)
                     return;
 
                 BingoUI.Log("Hooking Rando");
 
                 BingoUI.Log("Hooking GiveItemActions");
-
-                _setIntHook = new Hook
+                
+                _giveActionsSetIntHook = new Hook
                 (
                     giveItemActions.GetMethod("GiveItem"),
                     typeof(RandoCompatibility).GetMethod(nameof(FixRando))
@@ -99,7 +99,9 @@ namespace BingoUI
                     createNewShiny.GetMethod("Process"),
                     typeof(RandoCompatibility).GetMethod(nameof(PatchRandoCornifer))
                 );
+                
             }
+            
 
             [UsedImplicitly]
             public static void PatchRandoCornifer
@@ -190,28 +192,33 @@ namespace BingoUI
                 switch (action)
                 {
                     case GiveItemActions.GiveAction.WanderersJournal:
-                        pd.SetInt("trinket1", pd.trinket1);
+                        pd.SetInt(nameof(pd.trinket1), pd.trinket1);
                         break;
                     case GiveItemActions.GiveAction.HallownestSeal:
-                        pd.SetInt("trinket2", pd.trinket2);
+                        pd.SetInt(nameof(pd.trinket2), pd.trinket2);
                         break;
                     case GiveItemActions.GiveAction.KingsIdol:
-                        pd.SetInt("trinket3", pd.trinket3);
+                        pd.SetInt(nameof(pd.trinket3), pd.trinket3);
                         break;
                     case GiveItemActions.GiveAction.ArcaneEgg:
-                        pd.SetInt("trinket4", pd.trinket4);
+                        pd.SetInt(nameof(pd.trinket4), pd.trinket4);
                         break;
                     case GiveItemActions.GiveAction.Grub:
                         if (OnGrubObtain?.Invoke() ?? true)
-                            pd.SetInt("grubsCollected", pd.grubsCollected);
+                            pd.SetInt(nameof(pd.grubsCollected), pd.grubsCollected);
+                        break;
+                    case GiveItemActions.GiveAction.Kingsoul:
+                        pd.SetBool(nameof(pd.gotCharm_36), true);
                         break;
                 }
             }
 
             public void Dispose()
             {
-                _setIntHook?.Dispose();
+                _giveActionsSetIntHook?.Dispose();
                 _corniferLocationHook?.Dispose();
+                //// _lemmSellAllHook?.Dispose();
+                
             }
         }
 
@@ -300,20 +307,23 @@ namespace BingoUI
                 switch (action)
                 {
                     case Item.GiveAction.WanderersJournal:
-                        pd.SetInt("trinket1", pd.trinket1);
+                        pd.SetInt(nameof(pd.trinket1), pd.trinket1);
                         break;
                     case Item.GiveAction.HallownestSeal:
-                        pd.SetInt("trinket2", pd.trinket2);
+                        pd.SetInt(nameof(pd.trinket2), pd.trinket2);
                         break;
                     case Item.GiveAction.KingsIdol:
-                        pd.SetInt("trinket3", pd.trinket3);
+                        pd.SetInt(nameof(pd.trinket3), pd.trinket3);
                         break;
                     case Item.GiveAction.ArcaneEgg:
-                        pd.SetInt("trinket4", pd.trinket4);
+                        pd.SetInt(nameof(pd.trinket4), pd.trinket4);
                         break;
                     case Item.GiveAction.Grub:
                         if (OnGrubObtain?.Invoke() ?? true)
-                            pd.SetInt("grubsCollected", pd.grubsCollected);
+                            pd.SetInt(nameof(pd.grubsCollected), pd.grubsCollected);
+                        break;
+                    case Item.GiveAction.Kingsoul:
+                        pd.SetBool(nameof(pd.gotCharm_36), true);
                         break;
                 }
             }

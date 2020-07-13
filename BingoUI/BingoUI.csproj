@@ -11,6 +11,7 @@
     <AssemblyName>BingoUI</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -89,6 +90,9 @@
     <EmbeddedResource Include="$(ProjectDir)Images/regg.png" />
     <EmbeddedResource Include="$(ProjectDir)Images/DreamPlant.png" />
     <EmbeddedResource Include="$(ProjectDir)Images/lifeblood.png" />
+    <EmbeddedResource Include="$(ProjectDir)Images/charms.png" />
+    <EmbeddedResource Include="$(ProjectDir)Images/pins.png" />
+    <EmbeddedResource Include="$(ProjectDir)Images/notches.png" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Copy SourceFiles="$(TargetDir)BingoUI.dll" DestinationFiles="$(ProjectDir)Compiled Binaries/BingoUI.dll" />

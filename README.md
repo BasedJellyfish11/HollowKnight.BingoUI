@@ -31,3 +31,9 @@ Currently supports:
 - Whispering roots
 
 - Lifeblood masks, which are only displayed if the current amount is over 6
+
+- Map pins
+
+- Current amount of charms owned
+
+- Charm notches

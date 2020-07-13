@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
 using GlobalEnums;
 using JetBrains.Annotations;
 using Modding;
@@ -19,8 +21,20 @@ namespace BingoUI
     public class BingoUI : Mod, ITogglableMod
     {
         private static readonly Dictionary<string, CanvasGroup> CanvasGroups = new Dictionary<string, CanvasGroup>();
-        private static readonly Dictionary<string, GameObject> TextPanels = new Dictionary<string, GameObject>();
+        private static readonly Dictionary<string, Text> TextPanels = new Dictionary<string, Text>();
         private static readonly Dictionary<string, DateTime> NextCanvasFade = new Dictionary<string, DateTime>();
+
+        private static readonly string[] mapPinsStrings =
+        {
+            nameof(PlayerData.hasPinBench),
+            nameof(PlayerData.hasPinCocoon),
+            nameof(PlayerData.hasPinGhost),
+            nameof(PlayerData.hasPinShop),
+            nameof(PlayerData.hasPinSpa),
+            nameof(PlayerData.hasPinStag),
+            nameof(PlayerData.hasPinTram),
+            nameof(PlayerData.hasPinDreamPlant)
+        };
 
         private GameObject _canvas;
         
@@ -74,15 +88,16 @@ namespace BingoUI
 
             Log("Creating Canvases");
 
+            Dictionary<string, Sprite> sprites = SeanprCore.ResourceHelper.GetSprites();
             // Define anchor minimum and maximum so we can modify them in a loop and display the images systematically
-            Vector2 anchorMin = new Vector2(0.08f, 0.01f);
-            Vector2 anchorMax = new Vector2(0.15f, 0.08f);
+            Vector2 anchorMin = new Vector2(0f, 0.01f);
+            Vector2 anchorMax = new Vector2(1f/sprites.Count, 0.1f);
 
             // Create the canvas, make it not disappear on load
             _canvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceCamera, new Vector2(1920, 1080));
             UnityEngine.Object.DontDestroyOnLoad(_canvas);
 
-            foreach (KeyValuePair<string, Sprite> pair in SeanprCore.ResourceHelper.GetSprites())
+            foreach (KeyValuePair<string, Sprite> pair in sprites)
             {
                 // Get file name without extension as key
                 string[] a = pair.Key.Split('.');
@@ -113,18 +128,20 @@ namespace BingoUI
                 (
                     canvasSprite,
                     "0",
-                    20,
+                    23,
                     TextAnchor.LowerCenter,
                     new CanvasUtil.RectData(Vector2.zero, Vector2.zero, Vector2.zero, Vector2.one)
                 );
-                text.AddComponent<Outline>();
+                //// text.AddComponent<Outline>();
+                text.GetComponent<Text>().color = Color.black;
 
-                // Increment the anchors so the next image isn't on top
-                anchorMin += new Vector2(0.07f, 0);
-                anchorMax += new Vector2(0.07f, 0);
+                // Increment the anchors so the next image isn't on top. If it's all the way right, start drawing up
+                Vector2 sum = anchorMax.x >= 1f ? new Vector2(0, 0.09f) : new Vector2(1f/sprites.Count,0);
+                anchorMin += sum;
+                anchorMax += sum;
 
                 // Easy access to the text panel
-                TextPanels.Add(key, text);
+                TextPanels.Add(key, text.GetComponent<Text>());
                 
                 NextCanvasFade.Add(key, DateTime.MinValue);
 
@@ -162,7 +179,7 @@ namespace BingoUI
 
         private static void DummyRandoAreaGrubSet(string location)
         {
-            PlayerData.instance.SetInt("grubsCollected", PlayerData.instance.grubsCollected);
+            PlayerData.instance.SetInt(nameof(PlayerData.instance.grubsCollected), PlayerData.instance.grubsCollected);
         }
 
         /**
@@ -170,6 +187,7 @@ namespace BingoUI
          */
         private void UpdateIntCanvas(string intname, int value)
         {
+            string text;
             PlayerData pd = PlayerData.instance;
 
             // Make sure to set the value
@@ -181,10 +199,8 @@ namespace BingoUI
                 case var _ when intname.StartsWith("trinket"): 
                     
                     Log("Updating " + intname);
-                    int amount = pd.GetInt(intname);
-                    int sold = pd.GetInt("sold" + char.ToUpper(intname[0]) + intname.Substring(1));
-
-                    TextPanels[intname].GetComponent<Text>().text = $"{amount}({amount + sold})";
+                   
+                    UpdateText(intname);
 
                     if(DateTime.Now < NextCanvasFade[intname])
                         break;
@@ -197,7 +213,7 @@ namespace BingoUI
                 case nameof(pd.healthBlue):
                     Log("Updating Lifeblood");
 
-                    TextPanels["lifeblood"].GetComponent<Text>().text = $"{pd.healthBlue}";
+                    UpdateText("lifeblood");
 
                     if(DateTime.Now < NextCanvasFade["lifeblood"] || pd.healthBlue <= 6)
                         break;
@@ -212,8 +228,8 @@ namespace BingoUI
                     
                     Log("Updating rancid eggs");
 
-                    TextPanels["regg"].GetComponent<Text>().text = $"{pd.rancidEggs}({pd.rancidEggs + pd.jinnEggsSold})";
-
+                    UpdateText("regg");
+                    
                     if(DateTime.Now < NextCanvasFade["regg"])
                         break;
                     
@@ -224,38 +240,34 @@ namespace BingoUI
 
                 // grubs
                 case nameof(pd.grubsCollected):
-                {
+                
                     UpdateGrubs();
 
                     break;
-                }
+                
 
                 case nameof(pd.killsSlashSpider):
-                {
+                
                     Log("Updating devouts");
 
-                    // The kills start at 15 and count down since it's amount of kills left to get full journal
-                    TextPanels["devout"].GetComponentInChildren<Text>().text = $"{15 - pd.killsSlashSpider}";
-
+                    UpdateText("devout");
+                    
                     if(DateTime.Now < NextCanvasFade["devout"])
                         break;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["devout"]));
                     NextCanvasFade["devout"] = DateTime.Now.AddSeconds(0.5f);
 
                     break;
-                }
+                
                 
                 case nameof(pd.nailSmithUpgrades):
                     if(pd.nailSmithUpgrades == 1)
                         break;
                     goto case nameof(pd.ore);
                 case nameof(pd.ore):
-                {
                     Log("Updating pale ore");
 
-                    int oreFromUpgrades = (pd.nailSmithUpgrades * (pd.nailSmithUpgrades - 1)) / 2;
-
-                    TextPanels["ore"].GetComponentInChildren<Text>().text = $"{pd.ore} ({pd.ore + oreFromUpgrades})";
+                    UpdateText("ore");
 
                     if(DateTime.Now < NextCanvasFade["ore"])
                         break;
@@ -263,10 +275,22 @@ namespace BingoUI
                     NextCanvasFade["ore"] = DateTime.Now.AddSeconds(0.5f);
 
                     break;
-                }
+                
+                case nameof(pd.charmSlots):
+                    Log("Updating charm notches");
+
+                    text = TextPanels["notches"].text;
+                    UpdateText("notches");
+                    
+                    if(DateTime.Now < NextCanvasFade["notches"] || text.Equals(TextPanels["notches"].text))
+                        break;
+                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["notches"]));
+                    NextCanvasFade["notches"] = DateTime.Now.AddSeconds(0.5f);
+                    break;
             }
         }
 
+        // Grubs are annoying so they get their own method, courtesy of 56.
         private void UpdateGrubs(bool incArea = true)
         {
             PlayerData pd = PlayerData.instance;
@@ -280,7 +304,7 @@ namespace BingoUI
                 _settings.AreaGrubs[mapZone] += 1;
             }
 
-            TextPanels["grub"].GetComponent<Text>().text = $"{pd.grubsCollected}({_settings.AreaGrubs[mapZone]})";
+            TextPanels["grub"].text = $"{pd.grubsCollected}({_settings.AreaGrubs[mapZone]})";
             
             if (DateTime.Now < NextCanvasFade["grub"])
                 return;
@@ -290,24 +314,55 @@ namespace BingoUI
 
         private void UpdateBoolCanvas(string orig, bool value)
         {
-            
-            // The only bool canvas left is maps, so the old switch was deprecated by 56
-            
-            PlayerData pd = PlayerData.instance;
 
+            PlayerData pd = PlayerData.instance;
+            string text;
+            
             pd.SetBoolInternal(orig, value);
 
-            
-            if (!orig.StartsWith("map")) return;
+            switch (orig)
+            {
 
-            int amount = CountMapBools();
+                case var _ when orig.StartsWith("map"):
+                    
+                    Log("Updating maps");
 
-            TextPanels["maps"].GetComponentInChildren<Text>().text = amount.ToString();
+                    text = TextPanels["maps"].text;
+                    UpdateText("maps");
+                    
+                    if (DateTime.Now < NextCanvasFade["maps"] || text.Equals(TextPanels["maps"].text))
+                        return;
+                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["maps"]));
+                    NextCanvasFade["maps"] = DateTime.Now.AddSeconds(0.5f);
+                    break;
+                
+                case var _ when orig.StartsWith("gotCharm"):
+                    
+                    Log("Updating charm number");
 
-            if(DateTime.Now < NextCanvasFade["maps"])
-                return;
-            _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["maps"]));
-            NextCanvasFade["maps"] = DateTime.Now.AddSeconds(0.5f);
+                    text = TextPanels["charms"].text;
+                    UpdateText("charms");
+                    
+                    if(DateTime.Now < NextCanvasFade["charms"] || text.Equals(TextPanels["charms"].text))
+                        return;
+                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["charms"]));
+                    NextCanvasFade["charms"] = DateTime.Now.AddSeconds(0.5f);
+                    break;
+                
+                case var _ when orig.StartsWith("hasPin"):
+
+                    Log("Updating map pins");
+
+                    text = TextPanels["pins"].text;
+                    UpdateText("pins");
+                    
+                    if(DateTime.Now < NextCanvasFade["pins"] || text.Equals(TextPanels["pins"].text))
+                        return;
+                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["pins"]));
+                    NextCanvasFade["pins"] = DateTime.Now.AddSeconds(0.5f);
+                    break;
+                    
+            }
 
         }
 
@@ -322,7 +377,7 @@ namespace BingoUI
                     // The kills start at 15 and count down since it's amount of kills left to get full journal
 
                     _settings.DreamTreesCompleted++;
-                    TextPanels["DreamPlant"].GetComponentInChildren<Text>().text = $"{_settings.DreamTreesCompleted}";
+                    UpdateText("DreamPlant");
 
                     if(DateTime.Now < NextCanvasFade["DreamPlant"])
                         break;
@@ -335,7 +390,7 @@ namespace BingoUI
                     
                     Log("Updating cornifer");
 
-                    TextPanels["cornifer"].GetComponentInChildren<Text>().text = CountCorniferBools().ToString();
+                    UpdateText("cornifer");
 
                     if(DateTime.Now < NextCanvasFade["cornifer"])
                         break;
@@ -345,12 +400,75 @@ namespace BingoUI
                     break;
             }
         }
+        
+        private void UpdateText(string key)
+        {
+            PlayerData pd = PlayerData.instance;
+
+            switch (key)
+            {
+                case var _ when key.StartsWith("trinket"):
+                    int amount = pd.GetInt(key);
+                    int sold = pd.GetInt("sold" + char.ToUpper(key[0]) + key.Substring(1));
+
+                    TextPanels[key].text = $"{amount}({amount + sold})";
+                    break;
+                
+                case "lifeblood":
+                    TextPanels["lifeblood"].text = $"{pd.healthBlue}";
+                    break;
+                
+                case "regg":
+                    TextPanels["regg"].text = $"{pd.rancidEggs}({pd.rancidEggs + pd.jinnEggsSold})";
+                    break;
+                
+                case "grub":
+                    UpdateGrubs(false);
+                    break;
+                
+                case "devout":
+                    // The kills start at 15 and count down since it's amount of kills left to get full journal
+                    TextPanels["devout"].text = $"{15 - pd.killsSlashSpider}";
+                    break;
+                
+                case "ore":
+                    int oreFromUpgrades = (pd.nailSmithUpgrades * (pd.nailSmithUpgrades - 1)) / 2;
+                    TextPanels["ore"].text = $"{pd.ore}({pd.ore + oreFromUpgrades})";
+                    break;
+                
+                case "notches":
+                    TextPanels["notches"].text = pd.charmSlots.ToString();
+                    break;
+                
+                case "maps":
+                    TextPanels["maps"].text = CountMapBools().ToString();
+                    break;
+                
+                case "charms":
+                    pd.CountCharms();
+                    TextPanels["charms"].text = pd.charmsOwned.ToString();
+                    break;
+                
+                case "pins":
+                    TextPanels["pins"].text = CountPinBools().ToString();
+                    break;
+                
+                case "DreamPlant":
+                    TextPanels["DreamPlant"].GetComponentInChildren<Text>().text = $"{_settings.DreamTreesCompleted}";
+                    break;
+                
+                case "cornifer":
+                    TextPanels["cornifer"].GetComponentInChildren<Text>().text = CountCorniferBools().ToString();
+                    break;
+
+            }
+        }
 
         private IEnumerator FadeCanvas(CanvasGroup canvasGroup)
         {
             if (_globalSettings.alwaysDisplay)
                 yield break;
-            
+
             if(!canvasGroup.gameObject.activeSelf) // Make an if in case it gets updated again while it's still displaying. This is also why we stop coroutine before calling it
                 _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(canvasGroup));
 
@@ -390,7 +508,7 @@ namespace BingoUI
                 fsm.InsertMethod
                 (
                     "Box Up",
-                    0,
+                    fsm.GetState("Box Up").Actions.Length,
                     () => { UpdateCornifer(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name); }
                 );
             }
@@ -403,15 +521,16 @@ namespace BingoUI
             if (_globalSettings.alwaysDisplay)
                 yield break;
             
-       
-            UpdateGrubs(false);
-            foreach (CanvasGroup canvasGroup in CanvasGroups.Values)
+            foreach (KeyValuePair<string,CanvasGroup> pair in CanvasGroups)
             {
-                _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(canvasGroup));
+                UpdateText(pair.Key);
+                _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(pair.Value));
             }
 
         }
-        
+
+
+
         private void OnUnpause(On.UIManager.orig_UIClosePauseMenu origUIClosePauseMenu, UIManager self)
         {
             origUIClosePauseMenu(self);                    
@@ -440,7 +559,18 @@ namespace BingoUI
 
         public override string GetVersion()
         {
-            return "1.2";
+            Assembly asm = Assembly.GetExecutingAssembly();
+            
+            string ver = "1.3";
+
+            using SHA1 sha1 = SHA1.Create();
+            using FileStream stream = File.OpenRead(asm.Location);
+
+            byte[] hashBytes = sha1.ComputeHash(stream);
+            
+            string hash = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+
+            return $"{ver}-{hash.Substring(0, 6)}";
         }
 
         public new static void Log(object message)
@@ -454,9 +584,19 @@ namespace BingoUI
         {
             IEnumerable<FieldInfo> mapBools = typeof(PlayerData)
                                               .GetFields(BindingFlags.Public | BindingFlags.Instance)
-                                              .Where(x => x.FieldType == typeof(bool) && x.Name.StartsWith("map") && x.Name != nameof(PlayerData.mapAllRooms));
+                                              .Where(x => x.FieldType == typeof(bool) 
+                                                         && x.Name.StartsWith("map") 
+                                                         && x.Name != nameof(PlayerData.mapAllRooms) 
+                                                         && x.Name != nameof(PlayerData.mapDirtmouth));
 
             return mapBools.Count(fi => (bool) fi.GetValue(PlayerData.instance));
+        }
+
+        private static int CountPinBools()
+        {
+            return typeof(PlayerData).GetFields()
+                                     .Where(field => mapPinsStrings.Contains(field.Name))
+                                     .Count(fi => (bool) fi.GetValue(PlayerData.instance));
         }
 
         private void PatchCornifer(Scene arg0, LoadSceneMode arg1)
