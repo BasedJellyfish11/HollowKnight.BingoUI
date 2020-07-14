@@ -15,7 +15,7 @@ namespace BingoUI
         public Dictionary<MapZone, int> AreaGrubs = new GrubMap();
 
         [SerializeField]
-        public Dictionary<string, bool> Cornifers = new Dictionary<string, bool>();
+        public HashSet<string> Cornifers = new HashSet<string>();
     }
 
     

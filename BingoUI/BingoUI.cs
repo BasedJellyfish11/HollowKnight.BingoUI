@@ -24,6 +24,7 @@ namespace BingoUI
         private static readonly Dictionary<string, Text> TextPanels = new Dictionary<string, Text>();
         private static readonly Dictionary<string, DateTime> NextCanvasFade = new Dictionary<string, DateTime>();
 
+        // Excluding the pins we didn't want to count proved to be more of a pain than writing the ones we do want and doing .Contains()
         private static readonly string[] mapPinsStrings =
         {
             nameof(PlayerData.hasPinBench),
@@ -76,12 +77,13 @@ namespace BingoUI
             RandoPlandoCompatibility.OnGrubLocation += DummyRandoAreaGrubSet;
             RandoPlandoCompatibility.OnGrubObtain += OnRandoGrubObtain;
 
+            // Make dream trees send a delegate notifying that the tree is done when it sets the "completed" bool
             _dreamPlantHook = new ILHook
             (
                 typeof(DreamPlant).GetNestedType("<CheckOrbs>c__Iterator0", BindingFlags.NonPublic).GetMethod("MoveNext"),
                 TrackTrees
             );
-
+            
             GameObject go = new GameObject();
             _coroutineStarter = go.AddComponent<NonBouncer>();
             UnityEngine.Object.DontDestroyOnLoad(go);
@@ -132,10 +134,10 @@ namespace BingoUI
                     TextAnchor.LowerCenter,
                     new CanvasUtil.RectData(Vector2.zero, Vector2.zero, Vector2.zero, Vector2.one)
                 );
-                //// text.AddComponent<Outline>();
                 text.GetComponent<Text>().color = Color.black;
 
                 // Increment the anchors so the next image isn't on top. If it's all the way right, start drawing up
+                // This makes no sense with the new way of diving 1/sprites.Count, but it's kept in case that way starts failing due to space constraints
                 Vector2 sum = anchorMax.x >= 1f ? new Vector2(0, 0.09f) : new Vector2(1f/sprites.Count,0);
                 anchorMin += sum;
                 anchorMax += sum;
@@ -143,6 +145,7 @@ namespace BingoUI
                 // Easy access to the text panel
                 TextPanels.Add(key, text.GetComponent<Text>());
                 
+                // Set a minimum cooldown between fades
                 NextCanvasFade.Add(key, DateTime.MinValue);
 
                 Log("Canvas with key " + key + " created");
@@ -174,12 +177,7 @@ namespace BingoUI
             _dreamPlantHook?.Dispose();
             
             UnityEngine.Object.Destroy(_canvas);
-        }
-
-
-        private static void DummyRandoAreaGrubSet(string location)
-        {
-            PlayerData.instance.SetInt(nameof(PlayerData.instance.grubsCollected), PlayerData.instance.grubsCollected);
+            UnityEngine.Object.Destroy(_coroutineStarter.transform.parent.gameObject);
         }
 
         /**
@@ -187,7 +185,6 @@ namespace BingoUI
          */
         private void UpdateIntCanvas(string intname, int value)
         {
-            string text;
             PlayerData pd = PlayerData.instance;
 
             // Make sure to set the value
@@ -260,10 +257,10 @@ namespace BingoUI
                     break;
                 
                 
-                case nameof(pd.nailSmithUpgrades):
-                    if(pd.nailSmithUpgrades == 1)
+                case nameof(pd.nailSmithUpgrades): //Update on upgrades, else it shows as if we "lost" ore
+                    if(pd.nailSmithUpgrades == 1) //However the first upgrade costs no ore so it makes no sense to update on it
                         break;
-                    goto case nameof(pd.ore);
+                    goto case nameof(pd.ore);    //C# doesn't allow switch fallthrough. I hate goto so much
                 case nameof(pd.ore):
                     Log("Updating pale ore");
 
@@ -279,10 +276,10 @@ namespace BingoUI
                 case nameof(pd.charmSlots):
                     Log("Updating charm notches");
 
-                    text = TextPanels["notches"].text;
+                    string text = TextPanels["notches"].text;
                     UpdateText("notches");
                     
-                    if(DateTime.Now < NextCanvasFade["notches"] || text.Equals(TextPanels["notches"].text))
+                    if(DateTime.Now < NextCanvasFade["notches"] || text.Equals(TextPanels["notches"].text)) // Only show if the text changed, seeing how it seems to get set for every charm
                         break;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["notches"]));
                     NextCanvasFade["notches"] = DateTime.Now.AddSeconds(0.5f);
@@ -316,7 +313,7 @@ namespace BingoUI
         {
 
             PlayerData pd = PlayerData.instance;
-            string text;
+            string text; // Most of these get set a bit too often, so we'll compare to the old text to not repeteadly show the canvas for no good reason
             
             pd.SetBoolInternal(orig, value);
 
@@ -334,6 +331,7 @@ namespace BingoUI
                         return;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["maps"]));
                     NextCanvasFade["maps"] = DateTime.Now.AddSeconds(0.5f);
+                    
                     break;
                 
                 case var _ when orig.StartsWith("gotCharm"):
@@ -347,6 +345,7 @@ namespace BingoUI
                         return;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["charms"]));
                     NextCanvasFade["charms"] = DateTime.Now.AddSeconds(0.5f);
+                    
                     break;
                 
                 case var _ when orig.StartsWith("hasPin"):
@@ -360,8 +359,9 @@ namespace BingoUI
                         return;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["pins"]));
                     NextCanvasFade["pins"] = DateTime.Now.AddSeconds(0.5f);
-                    break;
                     
+                    break;
+                
             }
 
         }
@@ -374,9 +374,7 @@ namespace BingoUI
 
                     Log("Updating dream trees");
 
-                    // The kills start at 15 and count down since it's amount of kills left to get full journal
-
-                    _settings.DreamTreesCompleted++;
+                    _settings.DreamTreesCompleted++; 
                     UpdateText("DreamPlant");
 
                     if(DateTime.Now < NextCanvasFade["DreamPlant"])
@@ -423,7 +421,7 @@ namespace BingoUI
                     break;
                 
                 case "grub":
-                    UpdateGrubs(false);
+                    UpdateGrubs(false); // This will update the text without incrementing the area grubs
                     break;
                 
                 case "devout":
@@ -432,7 +430,7 @@ namespace BingoUI
                     break;
                 
                 case "ore":
-                    int oreFromUpgrades = (pd.nailSmithUpgrades * (pd.nailSmithUpgrades - 1)) / 2;
+                    int oreFromUpgrades = (pd.nailSmithUpgrades * (pd.nailSmithUpgrades - 1)) / 2; // This equation is stolen from Yusuf
                     TextPanels["ore"].text = $"{pd.ore}({pd.ore + oreFromUpgrades})";
                     break;
                 
@@ -445,7 +443,7 @@ namespace BingoUI
                     break;
                 
                 case "charms":
-                    pd.CountCharms();
+                    pd.CountCharms(); // Update charms owned first by calling this method. Especially useful since some mods seem to increment the number on half a kingsoul and this will undo that
                     TextPanels["charms"].text = pd.charmsOwned.ToString();
                     break;
                 
@@ -469,7 +467,7 @@ namespace BingoUI
             if (_globalSettings.alwaysDisplay)
                 yield break;
 
-            if(!canvasGroup.gameObject.activeSelf) // Make an if in case it gets updated again while it's still displaying. This is also why we stop coroutine before calling it
+            if(!canvasGroup.gameObject.activeSelf) // Make an if in case it gets updated again while it's still displaying. 
                 _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(canvasGroup));
 
             yield return new WaitForSeconds(4f);
@@ -483,10 +481,10 @@ namespace BingoUI
             FieldInfo completedBool = typeof(DreamPlant).GetField("completed", BindingFlags.NonPublic | BindingFlags.Instance);
             ILCursor cursor = new ILCursor(il).Goto(0);
 
-            while (cursor.TryGotoNext(instruction => instruction.MatchStfld(completedBool)))
+            while (cursor.TryGotoNext(instruction => instruction.MatchStfld(completedBool))) // Find the instruction that sets the tree as completed
             {
                 cursor.Index++;
-                cursor.EmitDelegate<Action>(() => { UpdateNonPdCanvas(NonPdEnums.DreamPlant); });
+                cursor.EmitDelegate<Action>(() => { UpdateNonPdCanvas(NonPdEnums.DreamPlant); }); // Emit the updating delegate after the bool is set
             }
         }
 
@@ -496,13 +494,14 @@ namespace BingoUI
             // Finds all kinds of cornifer locations in a possible scene and patches the FSM to increase the cornifer locations counter
             GameObject[] cornifers = new GameObject[3];
             cornifers[0] = GameObject.Find("Cornifer");
-            cornifers[1] = GameObject.Find("Cornifer Deepnest");
+            cornifers[1] = GameObject.Find("Cornifer Deepnest"); // Why is this a separete object TC
             cornifers[2] = GameObject.Find("Cornifer Card");
 
             foreach (GameObject cornifer in cornifers)
             {
                 if (cornifer == null)
                     continue;
+                // Patch the FSM to emit an updating delegate once the dialog box first appears
                 Log("Patching cornifer");
                 PlayMakerFSM fsm = cornifer.LocateMyFSM("Conversation Control");
                 fsm.InsertMethod
@@ -521,6 +520,7 @@ namespace BingoUI
             if (_globalSettings.alwaysDisplay)
                 yield break;
             
+            // Update and display every image
             foreach (KeyValuePair<string,CanvasGroup> pair in CanvasGroups)
             {
                 UpdateText(pair.Key);
@@ -529,14 +529,13 @@ namespace BingoUI
 
         }
 
-
-
         private void OnUnpause(On.UIManager.orig_UIClosePauseMenu origUIClosePauseMenu, UIManager self)
         {
             origUIClosePauseMenu(self);                    
             if(_globalSettings.alwaysDisplay)
                 return;
             
+            // Fade all the canvases, which we were displaying due to pause, out
             foreach (CanvasGroup canvasGroup in CanvasGroups.Values)
             {
                 _coroutineStarter.StartCoroutine(CanvasUtil.FadeOutCanvasGroup(canvasGroup));
@@ -549,6 +548,7 @@ namespace BingoUI
             if(_globalSettings.alwaysDisplay)
                 yield break;
             
+            // Same thing as above, except apparently quitting to menu doesn't count as unpausing
             foreach (CanvasGroup canvasGroup in CanvasGroups.Values)
             {
                 _coroutineStarter.StartCoroutine(CanvasUtil.FadeOutCanvasGroup(canvasGroup));
@@ -606,16 +606,16 @@ namespace BingoUI
 
         private void UpdateCornifer(string sceneName)
         {
-            if (_settings.Cornifers.ContainsKey(sceneName)) return;
+            if (_settings.Cornifers.Contains(sceneName)) return; // This would mean this location's cornifer has already been interacted with
 
-            _settings.Cornifers[sceneName] = true;
+            _settings.Cornifers.Add(sceneName); // Otherwise, set him as interacted with.
 
             UpdateNonPdCanvas(NonPdEnums.Cornifer);
         }
 
         private int CountCorniferBools()
         {
-            return _settings.Cornifers.Values.Count(c => c);
+            return _settings.Cornifers.Count;
         }
 
         private static MapZone SanitizeMapzone(MapZone mapZone)
@@ -664,6 +664,12 @@ namespace BingoUI
                    
             // Make sure SetInt isn't called so the MapZone isn't incremented.
             return false;
+        }
+        
+        private static void DummyRandoAreaGrubSet(string location)
+        {
+            // Increments area grubs. Hooked to checking a grub location in rando, dead otherwise
+            PlayerData.instance.SetInt(nameof(PlayerData.instance.grubsCollected), PlayerData.instance.grubsCollected);
         }
 
         #endregion
