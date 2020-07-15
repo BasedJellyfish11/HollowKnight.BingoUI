@@ -156,34 +156,6 @@ namespace BingoUI
             Log("Canvas creation done");
         }
 
-        private void UpdateDevouts(On.HealthManager.orig_SendDeathEvent orig, HealthManager self)
-        {
-            
-            orig(self);
-
-            if (!self.gameObject.name.StartsWith("Slash Spider")) return;
-            
-            if(_settings.Devouts.Add((UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, self.gameObject.name)))
-                UpdateCanvas("devout");
-
-
-        }
-        
-        private void UpdateCanvas(string key)
-        {
-            Log("Updating " + key);
-
-            string oldText = TextPanels[key].text;
-            UpdateText(key);
-            Log($" old text was {oldText} new text is {TextPanels[key].text}");
-            
-            if(DateTime.Now < NextCanvasFade[key] || oldText == TextPanels[key].text)
-                return;
-            _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups[key]));
-            NextCanvasFade[key] = DateTime.Now.AddSeconds(0.5f);
-
-        }
-
         public void Unload()
         {
             ModHooks.Instance.SetPlayerIntHook -= UpdateIntCanvas;
@@ -192,6 +164,7 @@ namespace BingoUI
             On.UIManager.GoToPauseMenu -= OnPause;
             On.UIManager.UIClosePauseMenu -= OnUnpause;
             On.UIManager.ReturnToMainMenu -= OnUnpauseQuitGame;
+            On.HealthManager.SendDeathEvent -= UpdateDevouts;
 
 
             _randoPlandoCompatibility?.Dispose();
@@ -247,10 +220,10 @@ namespace BingoUI
 
                     break;
 
-                case nameof(pd.nailSmithUpgrades): //Update on upgrades, else it shows as if we "lost" ore
-                    if(pd.nailSmithUpgrades == 1) //However the first upgrade costs no ore so it makes no sense to update on it
+                case nameof(pd.nailSmithUpgrades): // Update on upgrades, else it shows as if we "lost" ore
+                    if(pd.nailSmithUpgrades == 1)  // However the first upgrade costs no ore so it makes no sense to update on it
                         break;
-                    goto case nameof(pd.ore);    //C# doesn't allow switch fallthrough. I hate goto so much
+                    goto case nameof(pd.ore); // C# doesn't allow switch fallthrough. I hate goto so much
                 case nameof(pd.ore):
                     
                     UpdateCanvas("ore");
@@ -331,6 +304,22 @@ namespace BingoUI
                     break;
             }
         }
+        
+        private void UpdateCanvas(string key)
+        {
+            Log("Updating " + key);
+
+            string oldText = TextPanels[key].text;
+            UpdateText(key);
+            Log($" old text was {oldText} new text is {TextPanels[key].text}");
+            
+            if(DateTime.Now < NextCanvasFade[key] || oldText == TextPanels[key].text)
+                return;
+            _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups[key]));
+            NextCanvasFade[key] = DateTime.Now.AddSeconds(0.5f);
+
+        }
+        
         
         private void UpdateText(string key)
         {
@@ -445,50 +434,6 @@ namespace BingoUI
                 );
             }
         }
-        
-        private IEnumerator OnPause(On.UIManager.orig_GoToPauseMenu orig, UIManager uiManager)
-        {
-            yield return orig(uiManager);
-
-            if (_globalSettings.alwaysDisplay)
-                yield break;
-            
-            // Update and display every image
-            foreach (KeyValuePair<string,CanvasGroup> pair in CanvasGroups)
-            {
-                UpdateText(pair.Key);
-                _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(pair.Value));
-            }
-
-        }
-
-        private void OnUnpause(On.UIManager.orig_UIClosePauseMenu origUIClosePauseMenu, UIManager self)
-        {
-            origUIClosePauseMenu(self);                    
-            if(_globalSettings.alwaysDisplay)
-                return;
-            
-            // Fade all the canvases, which we were displaying due to pause, out
-            foreach (CanvasGroup canvasGroup in CanvasGroups.Values)
-            {
-                _coroutineStarter.StartCoroutine(CanvasUtil.FadeOutCanvasGroup(canvasGroup));
-            }
-        }
-
-        private IEnumerator OnUnpauseQuitGame(On.UIManager.orig_ReturnToMainMenu origReturnToMainMenu, UIManager self)
-        {
-            yield return origReturnToMainMenu(self);
-            if(_globalSettings.alwaysDisplay)
-                yield break;
-            
-            // Same thing as above, except apparently quitting to menu doesn't count as unpausing
-            foreach (CanvasGroup canvasGroup in CanvasGroups.Values)
-            {
-                _coroutineStarter.StartCoroutine(CanvasUtil.FadeOutCanvasGroup(canvasGroup));
-            }
-            
-        }
-
 
         public override string GetVersion()
         {
@@ -542,7 +487,63 @@ namespace BingoUI
             if (_settings.Cornifers.Add(sceneName)) // This would mean this location's cornifer has already been interacted with
                 UpdateNonPdCanvas(NonPdEnums.Cornifer);
         }
+        
+        private void UpdateDevouts(On.HealthManager.orig_SendDeathEvent orig, HealthManager self)
+        {
+            
+            orig(self);
 
+            if (!self.gameObject.name.StartsWith("Slash Spider")) return;
+            
+            if(_settings.Devouts.Add((UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, self.gameObject.name)))
+                UpdateCanvas("devout");
+
+
+        }
+
+        private IEnumerator OnPause(On.UIManager.orig_GoToPauseMenu orig, UIManager uiManager)
+        {
+            yield return orig(uiManager);
+
+            if (_globalSettings.alwaysDisplay)
+                yield break;
+            
+            // Update and display every image
+            foreach (KeyValuePair<string,CanvasGroup> pair in CanvasGroups)
+            {
+                UpdateText(pair.Key);
+                _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(pair.Value));
+            }
+
+        }
+
+        private void OnUnpause(On.UIManager.orig_UIClosePauseMenu origUIClosePauseMenu, UIManager self)
+        {
+            origUIClosePauseMenu(self);                    
+            if(_globalSettings.alwaysDisplay)
+                return;
+            
+            // Fade all the canvases, which we were displaying due to pause, out
+            foreach (CanvasGroup canvasGroup in CanvasGroups.Values)
+            {
+                _coroutineStarter.StartCoroutine(CanvasUtil.FadeOutCanvasGroup(canvasGroup));
+            }
+        }
+
+        private IEnumerator OnUnpauseQuitGame(On.UIManager.orig_ReturnToMainMenu origReturnToMainMenu, UIManager self)
+        {
+            yield return origReturnToMainMenu(self);
+            if(_globalSettings.alwaysDisplay)
+                yield break;
+            
+            // Same thing as above, except apparently quitting to menu doesn't count as unpausing
+            foreach (CanvasGroup canvasGroup in CanvasGroups.Values)
+            {
+                _coroutineStarter.StartCoroutine(CanvasUtil.FadeOutCanvasGroup(canvasGroup));
+            }
+            
+        }
+        
         private int CountCorniferBools()
         {
             return _settings.Cornifers.Count;
@@ -601,6 +602,7 @@ namespace BingoUI
             // Increments area grubs. Hooked to checking a grub location in rando, dead otherwise
             PlayerData.instance.SetInt(nameof(PlayerData.instance.grubsCollected), PlayerData.instance.grubsCollected);
         }
+        
 
         #endregion
     }
