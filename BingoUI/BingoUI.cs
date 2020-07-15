@@ -69,6 +69,7 @@ namespace BingoUI
             On.UIManager.GoToPauseMenu += OnPause;
             On.UIManager.UIClosePauseMenu += OnUnpause;
             On.UIManager.ReturnToMainMenu += OnUnpauseQuitGame;
+            On.HealthManager.SendDeathEvent += UpdateDevouts;
 
             // Hook rando/plando due to it not using SetInt like everything else and instead calling trinket++ etc
             _randoPlandoCompatibility = new RandoPlandoCompatibility();
@@ -76,6 +77,7 @@ namespace BingoUI
             RandoPlandoCompatibility.OnCorniferLocation += UpdateCornifer;
             RandoPlandoCompatibility.OnGrubLocation += DummyRandoAreaGrubSet;
             RandoPlandoCompatibility.OnGrubObtain += OnRandoGrubObtain;
+            
 
             // Make dream trees send a delegate notifying that the tree is done when it sets the "completed" bool
             _dreamPlantHook = new ILHook
@@ -154,6 +156,29 @@ namespace BingoUI
             Log("Canvas creation done");
         }
 
+        private void UpdateDevouts(On.HealthManager.orig_SendDeathEvent orig, HealthManager self)
+        {
+
+            if (self.gameObject.name.StartsWith("Slash Spider"))
+            {
+                if(_settings.Devouts.Add((UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, self.gameObject.name)))
+                {
+                    Log("Updating devouts");
+
+                    UpdateText("devout");
+                    
+                    if(DateTime.Now < NextCanvasFade["devout"])
+                        return;
+                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["devout"]));
+                    NextCanvasFade["devout"] = DateTime.Now.AddSeconds(0.5f);
+                }
+            }
+            
+            orig(self);
+
+        }
+
+
 
 
         public void Unload()
@@ -185,6 +210,7 @@ namespace BingoUI
          */
         private void UpdateIntCanvas(string intname, int value)
         {
+            string oldText;
             PlayerData pd = PlayerData.instance;
 
             // Make sure to set the value
@@ -241,22 +267,7 @@ namespace BingoUI
                     UpdateGrubs();
 
                     break;
-                
 
-                case nameof(pd.killsSlashSpider):
-                
-                    Log("Updating devouts");
-
-                    UpdateText("devout");
-                    
-                    if(DateTime.Now < NextCanvasFade["devout"])
-                        break;
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["devout"]));
-                    NextCanvasFade["devout"] = DateTime.Now.AddSeconds(0.5f);
-
-                    break;
-                
-                
                 case nameof(pd.nailSmithUpgrades): //Update on upgrades, else it shows as if we "lost" ore
                     if(pd.nailSmithUpgrades == 1) //However the first upgrade costs no ore so it makes no sense to update on it
                         break;
@@ -276,10 +287,10 @@ namespace BingoUI
                 case nameof(pd.charmSlots):
                     Log("Updating charm notches");
 
-                    string text = TextPanels["notches"].text;
+                    oldText = TextPanels["notches"].text;
                     UpdateText("notches");
                     
-                    if(DateTime.Now < NextCanvasFade["notches"] || text.Equals(TextPanels["notches"].text)) // Only show if the text changed, seeing how it seems to get set for every charm
+                    if(DateTime.Now < NextCanvasFade["notches"] || oldText.Equals(TextPanels["notches"].text)) // Only show if the text changed, seeing how it seems to get set for every charm
                         break;
                     _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["notches"]));
                     NextCanvasFade["notches"] = DateTime.Now.AddSeconds(0.5f);
@@ -426,7 +437,7 @@ namespace BingoUI
                 
                 case "devout":
                     // The kills start at 15 and count down since it's amount of kills left to get full journal
-                    TextPanels["devout"].text = $"{15 - pd.killsSlashSpider}";
+                    TextPanels["devout"].text = _settings.Devouts.Count.ToString();
                     break;
                 
                 case "ore":
@@ -606,11 +617,8 @@ namespace BingoUI
 
         private void UpdateCornifer(string sceneName)
         {
-            if (_settings.Cornifers.Contains(sceneName)) return; // This would mean this location's cornifer has already been interacted with
-
-            _settings.Cornifers.Add(sceneName); // Otherwise, set him as interacted with.
-
-            UpdateNonPdCanvas(NonPdEnums.Cornifer);
+            if (_settings.Cornifers.Add(sceneName)) // This would mean this location's cornifer has already been interacted with
+                UpdateNonPdCanvas(NonPdEnums.Cornifer);
         }
 
         private int CountCorniferBools()

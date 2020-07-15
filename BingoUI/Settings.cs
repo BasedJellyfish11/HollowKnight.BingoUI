@@ -16,6 +16,8 @@ namespace BingoUI
 
         [SerializeField]
         public HashSet<string> Cornifers = new HashSet<string>();
+        
+        public HashSet<(string,string)> Devouts = new HashSet<(string, string)>();
     }
 
     
