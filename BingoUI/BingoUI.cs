@@ -158,28 +158,31 @@ namespace BingoUI
 
         private void UpdateDevouts(On.HealthManager.orig_SendDeathEvent orig, HealthManager self)
         {
-
-            if (self.gameObject.name.StartsWith("Slash Spider"))
-            {
-                if(_settings.Devouts.Add((UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, self.gameObject.name)))
-                {
-                    Log("Updating devouts");
-
-                    UpdateText("devout");
-                    
-                    if(DateTime.Now < NextCanvasFade["devout"])
-                        return;
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["devout"]));
-                    NextCanvasFade["devout"] = DateTime.Now.AddSeconds(0.5f);
-                }
-            }
             
             orig(self);
 
+            if (!self.gameObject.name.StartsWith("Slash Spider")) return;
+            
+            if(_settings.Devouts.Add((UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, self.gameObject.name)))
+                UpdateCanvas("devout");
+
+
         }
+        
+        private void UpdateCanvas(string key)
+        {
+            Log("Updating " + key);
 
+            string oldText = TextPanels[key].text;
+            UpdateText(key);
+            Log($" old text was {oldText} new text is {TextPanels[key].text}");
+            
+            if(DateTime.Now < NextCanvasFade[key] || oldText == TextPanels[key].text)
+                return;
+            _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups[key]));
+            NextCanvasFade[key] = DateTime.Now.AddSeconds(0.5f);
 
-
+        }
 
         public void Unload()
         {
@@ -210,7 +213,6 @@ namespace BingoUI
          */
         private void UpdateIntCanvas(string intname, int value)
         {
-            string oldText;
             PlayerData pd = PlayerData.instance;
 
             // Make sure to set the value
@@ -219,46 +221,23 @@ namespace BingoUI
             switch (intname)
             {
                 // Relics.
-                case var _ when intname.StartsWith("trinket"): 
-                    
-                    Log("Updating " + intname);
-                   
-                    UpdateText(intname);
+                case var _ when intname.StartsWith("trinket"):
 
-                    if(DateTime.Now < NextCanvasFade[intname])
-                        break;
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups[intname]));
-                    NextCanvasFade[intname] = DateTime.Now.AddSeconds(0.5f);
-                    
+                    UpdateCanvas(intname);
                     break;
 
                 // Lifeblood
                 case nameof(pd.healthBlue):
-                    Log("Updating Lifeblood");
-
-                    UpdateText("lifeblood");
-
-                    if(DateTime.Now < NextCanvasFade["lifeblood"] || pd.healthBlue <= 6)
-                        break;
-                    _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["lifeblood"])));
-                    NextCanvasFade["lifeblood"] = DateTime.Now.AddSeconds(0.5f);
-
+                    
+                    if(pd.healthBlue <= 6)
+                        UpdateCanvas("lifeblood");
                     break;
-
+                
                 // eggs
                 case nameof(pd.jinnEggsSold):
                 case nameof(pd.rancidEggs):
                     
-                    Log("Updating rancid eggs");
-
-                    UpdateText("regg");
-                    
-                    if(DateTime.Now < NextCanvasFade["regg"])
-                        break;
-                    
-                    _coroutineStarter.StartCoroutine(FadeCanvas((CanvasGroups["regg"])));
-                    NextCanvasFade["regg"] = DateTime.Now.AddSeconds(0.5f);
-
+                    UpdateCanvas("regg");
                     break;
 
                 // grubs
@@ -273,27 +252,13 @@ namespace BingoUI
                         break;
                     goto case nameof(pd.ore);    //C# doesn't allow switch fallthrough. I hate goto so much
                 case nameof(pd.ore):
-                    Log("Updating pale ore");
-
-                    UpdateText("ore");
-
-                    if(DateTime.Now < NextCanvasFade["ore"])
-                        break;
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["ore"]));
-                    NextCanvasFade["ore"] = DateTime.Now.AddSeconds(0.5f);
-
+                    
+                    UpdateCanvas("ore");
                     break;
                 
                 case nameof(pd.charmSlots):
-                    Log("Updating charm notches");
-
-                    oldText = TextPanels["notches"].text;
-                    UpdateText("notches");
-                    
-                    if(DateTime.Now < NextCanvasFade["notches"] || oldText.Equals(TextPanels["notches"].text)) // Only show if the text changed, seeing how it seems to get set for every charm
-                        break;
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["notches"]));
-                    NextCanvasFade["notches"] = DateTime.Now.AddSeconds(0.5f);
+                  
+                    UpdateCanvas("notches");
                     break;
             }
         }
@@ -324,7 +289,6 @@ namespace BingoUI
         {
 
             PlayerData pd = PlayerData.instance;
-            string text; // Most of these get set a bit too often, so we'll compare to the old text to not repeteadly show the canvas for no good reason
             
             pd.SetBoolInternal(orig, value);
 
@@ -333,79 +297,37 @@ namespace BingoUI
 
                 case var _ when orig.StartsWith("map"):
                     
-                    Log("Updating maps");
-
-                    text = TextPanels["maps"].text;
-                    UpdateText("maps");
-                    
-                    if (DateTime.Now < NextCanvasFade["maps"] || text.Equals(TextPanels["maps"].text))
-                        return;
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["maps"]));
-                    NextCanvasFade["maps"] = DateTime.Now.AddSeconds(0.5f);
-                    
+                    UpdateCanvas("maps");
                     break;
                 
                 case var _ when orig.StartsWith("gotCharm"):
                     
-                    Log("Updating charm number");
-
-                    text = TextPanels["charms"].text;
-                    UpdateText("charms");
-                    
-                    if(DateTime.Now < NextCanvasFade["charms"] || text.Equals(TextPanels["charms"].text))
-                        return;
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["charms"]));
-                    NextCanvasFade["charms"] = DateTime.Now.AddSeconds(0.5f);
-                    
+                    UpdateCanvas("charms");
                     break;
                 
                 case var _ when orig.StartsWith("hasPin"):
 
-                    Log("Updating map pins");
-
-                    text = TextPanels["pins"].text;
-                    UpdateText("pins");
-                    
-                    if(DateTime.Now < NextCanvasFade["pins"] || text.Equals(TextPanels["pins"].text))
-                        return;
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["pins"]));
-                    NextCanvasFade["pins"] = DateTime.Now.AddSeconds(0.5f);
-                    
+                    UpdateCanvas("pins");
                     break;
                 
             }
 
         }
 
+        // Honestly now that the generic UpdateCanvas(key) exists, this is very useless. Might phase it out in a later update
         private void UpdateNonPdCanvas(NonPdEnums enums)
         {
             switch (enums)
             {
                 case NonPdEnums.DreamPlant:
 
-                    Log("Updating dream trees");
-
                     _settings.DreamTreesCompleted++; 
-                    UpdateText("DreamPlant");
-
-                    if(DateTime.Now < NextCanvasFade["DreamPlant"])
-                        break;
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["DreamPlant"]));
-                    NextCanvasFade["DreamPlant"] = DateTime.Now.AddSeconds(0.5f);
-
+                    UpdateCanvas("DreamPlant");
                     break;
 
                 case NonPdEnums.Cornifer:
                     
-                    Log("Updating cornifer");
-
-                    UpdateText("cornifer");
-
-                    if(DateTime.Now < NextCanvasFade["cornifer"])
-                        break;
-                    _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["cornifer"]));
-                    NextCanvasFade["cornifer"] = DateTime.Now.AddSeconds(0.5f);
-
+                    UpdateCanvas("cornifer");
                     break;
             }
         }
@@ -463,11 +385,11 @@ namespace BingoUI
                     break;
                 
                 case "DreamPlant":
-                    TextPanels["DreamPlant"].GetComponentInChildren<Text>().text = $"{_settings.DreamTreesCompleted}";
+                    TextPanels["DreamPlant"].text = $"{_settings.DreamTreesCompleted}";
                     break;
                 
                 case "cornifer":
-                    TextPanels["cornifer"].GetComponentInChildren<Text>().text = CountCorniferBools().ToString();
+                    TextPanels["cornifer"].text = CountCorniferBools().ToString();
                     break;
 
             }
