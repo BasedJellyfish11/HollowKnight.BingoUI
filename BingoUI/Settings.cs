@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using GlobalEnums;
 using Modding;
-using UnityEngine;
 
 namespace BingoUI
 {
@@ -11,10 +10,8 @@ namespace BingoUI
     {
         public int DreamTreesCompleted;
 
-        [SerializeField]
         public Dictionary<MapZone, int> AreaGrubs = new GrubMap();
 
-        [SerializeField]
         public HashSet<string> Cornifers = new HashSet<string>();
         
         public HashSet<(string,string)> Devouts = new HashSet<(string, string)>();

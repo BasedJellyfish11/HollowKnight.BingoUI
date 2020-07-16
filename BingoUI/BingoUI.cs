@@ -20,9 +20,9 @@ namespace BingoUI
 {
     public class BingoUI : Mod, ITogglableMod
     {
-        private static readonly Dictionary<string, CanvasGroup> CanvasGroups = new Dictionary<string, CanvasGroup>();
-        private static readonly Dictionary<string, Text> TextPanels = new Dictionary<string, Text>();
-        private static readonly Dictionary<string, DateTime> NextCanvasFade = new Dictionary<string, DateTime>();
+        private static Dictionary<string, CanvasGroup> CanvasGroups;
+        private static Dictionary<string, Text> TextPanels;
+        private static Dictionary<string, DateTime> NextCanvasFade;
 
         // Excluding the pins we didn't want to count proved to be more of a pain than writing the ones we do want and doing .Contains()
         private static readonly string[] mapPinsStrings =
@@ -62,6 +62,10 @@ namespace BingoUI
 
         public override void Initialize()
         {
+            
+            CanvasGroups = new Dictionary<string, CanvasGroup>();
+            TextPanels = new Dictionary<string, Text>();
+            NextCanvasFade = new Dictionary<string, DateTime>();
             // Hooks
             ModHooks.Instance.SetPlayerIntHook += UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook += UpdateBoolCanvas;
@@ -178,7 +182,7 @@ namespace BingoUI
             _dreamPlantHook?.Dispose();
             
             UnityEngine.Object.Destroy(_canvas);
-            UnityEngine.Object.Destroy(_coroutineStarter.transform.parent.gameObject);
+            UnityEngine.Object.Destroy(_coroutineStarter.gameObject);
         }
 
         /**
@@ -311,7 +315,7 @@ namespace BingoUI
 
             string oldText = TextPanels[key].text;
             UpdateText(key);
-            Log($" old text was {oldText} new text is {TextPanels[key].text}");
+            Log($" Old text was {oldText} new text is {TextPanels[key].text}");
             
             if(DateTime.Now < NextCanvasFade[key] || oldText == TextPanels[key].text)
                 return;
