@@ -501,17 +501,16 @@ namespace BingoUI
             
             orig(self);
 
-            switch (self.gameObject.name)
+            var tuples = new (string, HashSet<(string, string)>, KeyEnums)[]
             {
-                case var _ when self.gameObject.name.StartsWith("Slash Spider"):
-                    if (_settings.Devouts.Add((UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, self.gameObject.name)))
-                        UpdateCanvas(KeyEnums.devout);
-                    break;
-                
-                case var _ when self.gameObject.name.StartsWith("Great Shield Zombie"):
-                    if (_settings.GreatHuskSentries.Add((UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, self.gameObject.name)))
-                        UpdateCanvas(KeyEnums.ghs);
-                    break;
+                ("Slash Spider", _settings.Devouts, KeyEnums.devout),
+                ("Great Shield Zombie", _settings.GreatHuskSentries, KeyEnums.ghs),
+            };
+
+            foreach ((string, HashSet<(string, string)>, KeyEnums) tuple in tuples)
+            {
+                if (self.gameObject.name.StartsWith(tuple.Item1) && tuple.Item2.Add((UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, self.gameObject.name)))
+                    UpdateCanvas(tuple.Item3);
             }
 
 
