@@ -15,6 +15,7 @@ namespace BingoUI
         public HashSet<string> Cornifers = new HashSet<string>();
         
         public HashSet<(string,string)> Devouts = new HashSet<(string, string)>();
+        public HashSet<(string,string)> GreatHuskSentries = new HashSet<(string, string)>();
     }
 
     

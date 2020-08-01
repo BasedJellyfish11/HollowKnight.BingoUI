@@ -20,9 +20,9 @@ namespace BingoUI
 {
     public class BingoUI : Mod, ITogglableMod
     {
-        private static Dictionary<string, CanvasGroup> CanvasGroups;
-        private static Dictionary<string, Text> TextPanels;
-        private static Dictionary<string, DateTime> NextCanvasFade;
+        private static Dictionary<KeyEnums, CanvasGroup> CanvasGroups;
+        private static Dictionary<KeyEnums, Text> TextPanels;
+        private static Dictionary<KeyEnums, DateTime> NextCanvasFade;
 
         // Excluding the pins we didn't want to count proved to be more of a pain than writing the ones we do want and doing .Contains()
         private static readonly string[] mapPinsStrings =
@@ -63,9 +63,9 @@ namespace BingoUI
         public override void Initialize()
         {
             
-            CanvasGroups = new Dictionary<string, CanvasGroup>();
-            TextPanels = new Dictionary<string, Text>();
-            NextCanvasFade = new Dictionary<string, DateTime>();
+            CanvasGroups = new Dictionary<KeyEnums, CanvasGroup>();
+            TextPanels = new Dictionary<KeyEnums, Text>();
+            NextCanvasFade = new Dictionary<KeyEnums, DateTime>();
             // Hooks
             ModHooks.Instance.SetPlayerIntHook += UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook += UpdateBoolCanvas;
@@ -73,7 +73,7 @@ namespace BingoUI
             On.UIManager.GoToPauseMenu += OnPause;
             On.UIManager.UIClosePauseMenu += OnUnpause;
             On.UIManager.ReturnToMainMenu += OnUnpauseQuitGame;
-            On.HealthManager.SendDeathEvent += UpdateDevouts;
+            On.HealthManager.SendDeathEvent += UpdateUniqueKills;
 
             // Hook rando/plando due to it not using SetInt like everything else and instead calling trinket++ etc
             _randoPlandoCompatibility = new RandoPlandoCompatibility();
@@ -99,7 +99,7 @@ namespace BingoUI
             Dictionary<string, Sprite> sprites = SeanprCore.ResourceHelper.GetSprites();
             // Define anchor minimum and maximum so we can modify them in a loop and display the images systematically
             Vector2 anchorMin = new Vector2(0f, 0.01f);
-            Vector2 anchorMax = new Vector2(1f/sprites.Count, 0.1f);
+            Vector2 anchorMax = new Vector2(1f/15f, 0.1f);
 
             // Create the canvas, make it not disappear on load
             _canvas = CanvasUtil.CreateCanvas(RenderMode.ScreenSpaceCamera, new Vector2(1920, 1080));
@@ -128,7 +128,7 @@ namespace BingoUI
                     canvasGroup.gameObject.SetActive(false);
 
                 // Add the group to the map to access it easier
-                CanvasGroups.Add(key, canvasGroup);
+                CanvasGroups.Add((KeyEnums)Enum.Parse(typeof(KeyEnums),key), canvasGroup);
 
 
                 // Create text, parented to the image so it gets centered on it
@@ -144,15 +144,15 @@ namespace BingoUI
 
                 // Increment the anchors so the next image isn't on top. If it's all the way right, start drawing up
                 // This makes no sense with the new way of diving 1/sprites.Count, but it's kept in case that way starts failing due to space constraints
-                Vector2 sum = anchorMax.x >= 1f ? new Vector2(0, 0.09f) : new Vector2(1f/sprites.Count,0);
+                Vector2 sum = anchorMax.x >= 0.95f ? new Vector2(0, 0.11f) : new Vector2(1f/15,0);
                 anchorMin += sum;
                 anchorMax += sum;
 
                 // Easy access to the text panel
-                TextPanels.Add(key, text.GetComponent<Text>());
+                TextPanels.Add((KeyEnums)Enum.Parse(typeof(KeyEnums), key), text.GetComponent<Text>());
                 
                 // Set a minimum cooldown between fades
-                NextCanvasFade.Add(key, DateTime.MinValue);
+                NextCanvasFade.Add((KeyEnums)Enum.Parse(typeof(KeyEnums), key), DateTime.MinValue);
 
                 Log("Canvas with key " + key + " created");
             }
@@ -168,7 +168,7 @@ namespace BingoUI
             On.UIManager.GoToPauseMenu -= OnPause;
             On.UIManager.UIClosePauseMenu -= OnUnpause;
             On.UIManager.ReturnToMainMenu -= OnUnpauseQuitGame;
-            On.HealthManager.SendDeathEvent -= UpdateDevouts;
+            On.HealthManager.SendDeathEvent -= UpdateUniqueKills;
 
 
             _randoPlandoCompatibility?.Dispose();
@@ -200,21 +200,20 @@ namespace BingoUI
                 // Relics.
                 case var _ when intname.StartsWith("trinket"):
 
-                    UpdateCanvas(intname);
+                    UpdateCanvas((KeyEnums)Enum.Parse(typeof(KeyEnums), intname));
                     break;
 
                 // Lifeblood
-                case nameof(pd.healthBlue):
+                case nameof(pd.healthBlue) when pd.healthBlue > 6 || CanvasGroups[KeyEnums.lifeblood].gameObject.activeSelf:
                     
-                    if(pd.healthBlue <= 6)
-                        UpdateCanvas("lifeblood");
+                    UpdateCanvas(KeyEnums.lifeblood);
                     break;
                 
                 // eggs
                 case nameof(pd.jinnEggsSold):
                 case nameof(pd.rancidEggs):
                     
-                    UpdateCanvas("regg");
+                    UpdateCanvas(KeyEnums.regg);
                     break;
 
                 // grubs
@@ -230,12 +229,12 @@ namespace BingoUI
                     goto case nameof(pd.ore); // C# doesn't allow switch fallthrough. I hate goto so much
                 case nameof(pd.ore):
                     
-                    UpdateCanvas("ore");
+                    UpdateCanvas(KeyEnums.ore);
                     break;
                 
                 case nameof(pd.charmSlots):
                   
-                    UpdateCanvas("notches");
+                    UpdateCanvas(KeyEnums.notches);
                     break;
             }
         }
@@ -254,12 +253,12 @@ namespace BingoUI
                 _settings.AreaGrubs[mapZone] += 1;
             }
 
-            TextPanels["grub"].text = $"{pd.grubsCollected}({_settings.AreaGrubs[mapZone]})";
+            TextPanels[KeyEnums.grub].text = $"{pd.grubsCollected}({_settings.AreaGrubs[mapZone]})";
             
-            if (DateTime.Now < NextCanvasFade["grub"])
+            if (DateTime.Now < NextCanvasFade[KeyEnums.grub])
                 return;
-            _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups["grub"]));
-            NextCanvasFade["grub"] = DateTime.Now.AddSeconds(0.5f);
+            _coroutineStarter.StartCoroutine(FadeCanvas(CanvasGroups[KeyEnums.grub]));
+            NextCanvasFade[KeyEnums.grub] = DateTime.Now.AddSeconds(0.5f);
         }
 
         private void UpdateBoolCanvas(string orig, bool value)
@@ -274,17 +273,17 @@ namespace BingoUI
 
                 case var _ when orig.StartsWith("map"):
                     
-                    UpdateCanvas("maps");
+                    UpdateCanvas(KeyEnums.maps);
                     break;
                 
                 case var _ when orig.StartsWith("gotCharm"):
                     
-                    UpdateCanvas("charms");
+                    UpdateCanvas(KeyEnums.charms);
                     break;
                 
                 case var _ when orig.StartsWith("hasPin"):
 
-                    UpdateCanvas("pins");
+                    UpdateCanvas(KeyEnums.pins);
                     break;
                 
             }
@@ -299,17 +298,17 @@ namespace BingoUI
                 case NonPdEnums.DreamPlant:
 
                     _settings.DreamTreesCompleted++; 
-                    UpdateCanvas("DreamPlant");
+                    UpdateCanvas(KeyEnums.DreamPlant);
                     break;
 
                 case NonPdEnums.Cornifer:
                     
-                    UpdateCanvas("cornifer");
+                    UpdateCanvas(KeyEnums.cornifer);
                     break;
             }
         }
         
-        private void UpdateCanvas(string key)
+        private void UpdateCanvas(KeyEnums key)
         {
             Log("Updating " + key);
 
@@ -325,64 +324,69 @@ namespace BingoUI
         }
         
         
-        private void UpdateText(string key)
+        private void UpdateText(KeyEnums key)
         {
             PlayerData pd = PlayerData.instance;
 
             switch (key)
             {
-                case var _ when key.StartsWith("trinket"):
-                    int amount = pd.GetInt(key);
-                    int sold = pd.GetInt("sold" + char.ToUpper(key[0]) + key.Substring(1));
+                case var _ when key.ToString().StartsWith("trinket"):
+                    int amount = pd.GetInt(key.ToString());
+                    int sold = pd.GetInt("sold" + char.ToUpper(key.ToString()[0]) + key.ToString().Substring(1));
 
                     TextPanels[key].text = $"{amount}({amount + sold})";
                     break;
                 
-                case "lifeblood":
-                    TextPanels["lifeblood"].text = $"{pd.healthBlue}";
+                case KeyEnums.lifeblood:
+                    TextPanels[KeyEnums.lifeblood].text = pd.joniHealthBlue != 0? $"{pd.healthBlue + 1}": $"{pd.healthBlue}" ;
                     break;
                 
-                case "regg":
-                    TextPanels["regg"].text = $"{pd.rancidEggs}({pd.rancidEggs + pd.jinnEggsSold})";
+                case KeyEnums.regg:
+                    TextPanels[KeyEnums.regg].text = $"{pd.rancidEggs}({pd.rancidEggs + pd.jinnEggsSold})";
                     break;
                 
-                case "grub":
+                case KeyEnums.grub:
                     UpdateGrubs(false); // This will update the text without incrementing the area grubs
                     break;
                 
-                case "devout":
+                case KeyEnums.devout:
                     // The kills start at 15 and count down since it's amount of kills left to get full journal
-                    TextPanels["devout"].text = _settings.Devouts.Count.ToString();
+                    TextPanels[KeyEnums.devout].text = _settings.Devouts.Count.ToString();
                     break;
                 
-                case "ore":
+                case KeyEnums.ghs:
+                    // Same behaviour as above
+                    TextPanels[KeyEnums.ghs].text = _settings.GreatHuskSentries.Count.ToString();
+                    break;
+                
+                case KeyEnums.ore:
                     int oreFromUpgrades = (pd.nailSmithUpgrades * (pd.nailSmithUpgrades - 1)) / 2; // This equation is stolen from Yusuf
-                    TextPanels["ore"].text = $"{pd.ore}({pd.ore + oreFromUpgrades})";
+                    TextPanels[KeyEnums.ore].text = $"{pd.ore}({pd.ore + oreFromUpgrades})";
                     break;
                 
-                case "notches":
-                    TextPanels["notches"].text = pd.charmSlots.ToString();
+                case KeyEnums.notches:
+                    TextPanels[KeyEnums.notches].text = pd.charmSlots.ToString();
                     break;
                 
-                case "maps":
-                    TextPanels["maps"].text = CountMapBools().ToString();
+                case KeyEnums.maps:
+                    TextPanels[KeyEnums.maps].text = CountMapBools().ToString();
                     break;
                 
-                case "charms":
+                case KeyEnums.charms:
                     pd.CountCharms(); // Update charms owned first by calling this method. Especially useful since some mods seem to increment the number on half a kingsoul and this will undo that
-                    TextPanels["charms"].text = pd.charmsOwned.ToString();
+                    TextPanels[KeyEnums.charms].text = pd.charmsOwned.ToString();
                     break;
                 
-                case "pins":
-                    TextPanels["pins"].text = CountPinBools().ToString();
+                case KeyEnums.pins:
+                    TextPanels[KeyEnums.pins].text = CountPinBools().ToString();
                     break;
                 
-                case "DreamPlant":
-                    TextPanels["DreamPlant"].text = $"{_settings.DreamTreesCompleted}";
+                case KeyEnums.DreamPlant:
+                    TextPanels[KeyEnums.DreamPlant].text = $"{_settings.DreamTreesCompleted}";
                     break;
                 
-                case "cornifer":
-                    TextPanels["cornifer"].text = CountCorniferBools().ToString();
+                case KeyEnums.cornifer:
+                    TextPanels[KeyEnums.cornifer].text = CountCorniferBools().ToString();
                     break;
 
             }
@@ -492,15 +496,23 @@ namespace BingoUI
                 UpdateNonPdCanvas(NonPdEnums.Cornifer);
         }
         
-        private void UpdateDevouts(On.HealthManager.orig_SendDeathEvent orig, HealthManager self)
+        private void UpdateUniqueKills(On.HealthManager.orig_SendDeathEvent orig, HealthManager self)
         {
             
             orig(self);
 
-            if (!self.gameObject.name.StartsWith("Slash Spider")) return;
-            
-            if(_settings.Devouts.Add((UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, self.gameObject.name)))
-                UpdateCanvas("devout");
+            switch (self.gameObject.name)
+            {
+                case var _ when self.gameObject.name.StartsWith("Slash Spider"):
+                    if (_settings.Devouts.Add((UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, self.gameObject.name)))
+                        UpdateCanvas(KeyEnums.devout);
+                    break;
+                
+                case var _ when self.gameObject.name.StartsWith("Great Shield Zombie"):
+                    if (_settings.GreatHuskSentries.Add((UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, self.gameObject.name)))
+                        UpdateCanvas(KeyEnums.ghs);
+                    break;
+            }
 
 
         }
@@ -513,7 +525,7 @@ namespace BingoUI
                 yield break;
             
             // Update and display every image
-            foreach (KeyValuePair<string,CanvasGroup> pair in CanvasGroups)
+            foreach (KeyValuePair<KeyEnums,CanvasGroup> pair in CanvasGroups)
             {
                 UpdateText(pair.Key);
                 _coroutineStarter.StartCoroutine(CanvasUtil.FadeInCanvasGroup(pair.Value));
