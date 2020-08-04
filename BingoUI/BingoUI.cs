@@ -464,6 +464,11 @@ namespace BingoUI
 
             return $"{ver}-{hash.Substring(0, 6)}";
         }
+        
+        public override int LoadPriority()
+        {
+            return int.MinValue;
+        }
 
         public new static void Log(object message)
         {
@@ -623,7 +628,6 @@ namespace BingoUI
             // Increments area grubs. Hooked to checking a grub location in rando, dead otherwise
             PlayerData.instance.SetInt(nameof(PlayerData.instance.grubsCollected), PlayerData.instance.grubsCollected);
         }
-        
 
         #endregion
     }
