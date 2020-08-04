@@ -10,6 +10,8 @@ namespace BingoUI
     {
         public int DreamTreesCompleted;
 
+        public int spentGeo;
+
         public Dictionary<MapZone, int> AreaGrubs = new GrubMap();
 
         public HashSet<string> Cornifers = new HashSet<string>();

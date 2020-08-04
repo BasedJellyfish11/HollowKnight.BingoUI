@@ -37,3 +37,7 @@ Currently supports:
 - Current amount of charms owned
 
 - Charm notches
+
+- Great Husk Sentry kills
+
+- Amount of Geo spent

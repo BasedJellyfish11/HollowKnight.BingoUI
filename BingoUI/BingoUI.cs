@@ -41,6 +41,7 @@ namespace BingoUI
         
         private NonBouncer _coroutineStarter;
 
+
         public override ModSettings SaveSettings
         {
             get => _settings;
@@ -53,8 +54,8 @@ namespace BingoUI
             set => _globalSettings = value as GlobalSettings;
         }
 
-        private SaveSettings _settings = new SaveSettings();
-        private GlobalSettings _globalSettings = new GlobalSettings();
+        internal static SaveSettings _settings = new SaveSettings();
+        private static GlobalSettings _globalSettings = new GlobalSettings();
 
         private RandoPlandoCompatibility _randoPlandoCompatibility;
 
@@ -74,6 +75,12 @@ namespace BingoUI
             On.UIManager.UIClosePauseMenu += OnUnpause;
             On.UIManager.ReturnToMainMenu += OnUnpauseQuitGame;
             On.HealthManager.SendDeathEvent += UpdateUniqueKills;
+            
+            // GeoTracker stuff. Taken straight up from Serena's code, with no changes, so some of it might be redundant idk
+            
+            
+            On.GeoCounter.Update +=  GeoTracker.UpdateGeoText;
+            On.GeoCounter.TakeGeo += GeoTracker.CheckGeoSpent;
 
             // Hook rando/plando due to it not using SetInt like everything else and instead calling trinket++ etc
             _randoPlandoCompatibility = new RandoPlandoCompatibility();
@@ -220,7 +227,6 @@ namespace BingoUI
                 case nameof(pd.grubsCollected):
                 
                     UpdateGrubs();
-
                     break;
 
                 case nameof(pd.nailSmithUpgrades): // Update on upgrades, else it shows as if we "lost" ore

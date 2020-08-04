@@ -35,6 +35,7 @@
   <ItemGroup>
     <Compile Include="BingoUI.cs" />
     <Compile Include="Enums.cs" />
+    <Compile Include="GeoTracker.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RandoPlandoCompatibility.cs" />
     <Compile Include="Settings.cs" />
