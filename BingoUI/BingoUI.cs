@@ -464,11 +464,6 @@ namespace BingoUI
 
             return $"{ver}-{hash.Substring(0, 6)}";
         }
-        
-        public override int LoadPriority()
-        {
-            return int.MinValue;
-        }
 
         public new static void Log(object message)
         {
