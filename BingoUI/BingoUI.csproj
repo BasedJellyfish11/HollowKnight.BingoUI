@@ -74,8 +74,8 @@
     <Reference Include="RandomizerMod3.0, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null">
       <HintPath>Assembly References\RandomizerMod3.0.dll</HintPath>
     </Reference>
-    <Reference Include="SeanprCore, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null">
-      <HintPath>Assembly References\SeanprCore.dll</HintPath>
+    <Reference Include="SereCore, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null">
+      <HintPath>Assembly References\SereCore.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
       <HintPath>Assembly References\UnityEngine.dll</HintPath>

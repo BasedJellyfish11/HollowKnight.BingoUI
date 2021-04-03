@@ -2,7 +2,7 @@
 
 A tool that displays progress towards some of the most common counting bingo goals on screen every time progress is made towards one of them.
 
-Requires modding API version -56 or higher and SeanprCore.
+Requires modding API version -56 or higher and SereCore.
 
 Also has a global setting for always displaying the icons
 

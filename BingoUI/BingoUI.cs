@@ -103,7 +103,7 @@ namespace BingoUI
 
             Log("Creating Canvases");
 
-            Dictionary<string, Sprite> sprites = SeanprCore.ResourceHelper.GetSprites();
+            Dictionary<string, Sprite> sprites = SereCore.ResourceHelper.GetSprites();
             // Define anchor minimum and maximum so we can modify them in a loop and display the images systematically
             Vector2 anchorMin = new Vector2(0f, 0.01f);
             Vector2 anchorMax = new Vector2(1f/15f, 0.1f);
@@ -192,6 +192,26 @@ namespace BingoUI
             UnityEngine.Object.Destroy(_coroutineStarter.gameObject);
         }
 
+        private static bool GrubsRandomized() {
+            var rando = Type.GetType("RandomizerMod.RandomizerMod, RandomizerMod3.0");
+            if (rando == null) {
+                return false;
+            }
+            var settingsType = Type.GetType("RandomizerMod.SaveSettings, RandomizerMod3.0");
+            if (settingsType == null) {
+                return false;
+            }
+            var randoInstance = rando.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
+            if (randoInstance == null) {
+                return false;
+            }
+            var settings = rando.GetProperty("Settings").GetValue(randoInstance, null);
+            if (settings == null) {
+                return false;
+            }
+            return (bool)settingsType.GetProperty("RandomizeGrubs").GetValue(settings, null);
+        }
+
         /**
          * Check if the Int that changed is something to track, and if so display the canvas and the updated number
          */
@@ -226,7 +246,7 @@ namespace BingoUI
                 // grubs
                 case nameof(pd.grubsCollected):
                 
-                    UpdateGrubs();
+                    UpdateGrubs(!GrubsRandomized());
                     break;
 
                 case nameof(pd.nailSmithUpgrades): // Update on upgrades, else it shows as if we "lost" ore
@@ -618,10 +638,10 @@ namespace BingoUI
             return false;
         }
         
-        private static void DummyRandoAreaGrubSet(string location)
+        private void DummyRandoAreaGrubSet(string location)
         {
             // Increments area grubs. Hooked to checking a grub location in rando, dead otherwise
-            PlayerData.instance.SetInt(nameof(PlayerData.instance.grubsCollected), PlayerData.instance.grubsCollected);
+            UpdateGrubs(true);
         }
 
         #endregion
