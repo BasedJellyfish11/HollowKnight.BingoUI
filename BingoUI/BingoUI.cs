@@ -61,6 +61,8 @@ namespace BingoUI
 
         private ILHook _dreamPlantHook;
 
+        private bool? _grubsRandomized;
+
         public override void Initialize()
         {
             
@@ -71,6 +73,7 @@ namespace BingoUI
             ModHooks.Instance.SetPlayerIntHook += UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook += UpdateBoolCanvas;
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += PatchCornifer;
+            UnityEngine.SceneManagement.SceneManager.activeSceneChanged += ResetGrubsFlag;
             On.UIManager.GoToPauseMenu += OnPause;
             On.UIManager.UIClosePauseMenu += OnUnpause;
             On.UIManager.ReturnToMainMenu += OnUnpauseQuitGame;
@@ -172,6 +175,7 @@ namespace BingoUI
             ModHooks.Instance.SetPlayerIntHook -= UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook -= UpdateBoolCanvas;
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= PatchCornifer;
+            UnityEngine.SceneManagement.SceneManager.activeSceneChanged -= ResetGrubsFlag;
             On.UIManager.GoToPauseMenu -= OnPause;
             On.UIManager.UIClosePauseMenu -= OnUnpause;
             On.UIManager.ReturnToMainMenu -= OnUnpauseQuitGame;
@@ -192,7 +196,18 @@ namespace BingoUI
             UnityEngine.Object.Destroy(_coroutineStarter.gameObject);
         }
 
-        private static bool GrubsRandomized() {
+        private void ResetGrubsFlag(Scene from, Scene to) {
+            // Invalidate the cache, as the player may be switching to a different
+            // save file.
+            if (to.name == "Menu_Title" || to.name == "Quit_To_Menu") {
+                _grubsRandomized = null;
+            }
+        }
+
+        private bool GrubsRandomized() {
+            if (_grubsRandomized.HasValue) {
+                return _grubsRandomized.Value;
+            }
             var rando = Type.GetType("RandomizerMod.RandomizerMod, RandomizerMod3.0");
             if (rando == null) {
                 return false;
@@ -209,7 +224,11 @@ namespace BingoUI
             if (settings == null) {
                 return false;
             }
-            return (bool)settingsType.GetProperty("RandomizeGrubs").GetValue(settings, null);
+            var r = (bool)settingsType.GetProperty("RandomizeGrubs").GetValue(settings, null);
+            // Cache the value so we don't have to run all this reflection again next time the
+            // player breaks a grub jar.
+            _grubsRandomized = r;
+            return r;
         }
 
         /**
