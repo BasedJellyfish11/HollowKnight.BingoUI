@@ -61,6 +61,8 @@ namespace BingoUI
 
         private ILHook _dreamPlantHook;
 
+        private bool? _grubsRandomized;
+
         public override void Initialize()
         {
             
@@ -71,6 +73,7 @@ namespace BingoUI
             ModHooks.Instance.SetPlayerIntHook += UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook += UpdateBoolCanvas;
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += PatchCornifer;
+            UnityEngine.SceneManagement.SceneManager.activeSceneChanged += ResetGrubsFlag;
             On.UIManager.GoToPauseMenu += OnPause;
             On.UIManager.UIClosePauseMenu += OnUnpause;
             On.UIManager.ReturnToMainMenu += OnUnpauseQuitGame;
@@ -103,7 +106,7 @@ namespace BingoUI
 
             Log("Creating Canvases");
 
-            Dictionary<string, Sprite> sprites = SeanprCore.ResourceHelper.GetSprites();
+            Dictionary<string, Sprite> sprites = SereCore.ResourceHelper.GetSprites();
             // Define anchor minimum and maximum so we can modify them in a loop and display the images systematically
             Vector2 anchorMin = new Vector2(0f, 0.01f);
             Vector2 anchorMax = new Vector2(1f/15f, 0.1f);
@@ -172,6 +175,7 @@ namespace BingoUI
             ModHooks.Instance.SetPlayerIntHook -= UpdateIntCanvas;
             ModHooks.Instance.SetPlayerBoolHook -= UpdateBoolCanvas;
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= PatchCornifer;
+            UnityEngine.SceneManagement.SceneManager.activeSceneChanged -= ResetGrubsFlag;
             On.UIManager.GoToPauseMenu -= OnPause;
             On.UIManager.UIClosePauseMenu -= OnUnpause;
             On.UIManager.ReturnToMainMenu -= OnUnpauseQuitGame;
@@ -190,6 +194,41 @@ namespace BingoUI
             
             UnityEngine.Object.Destroy(_canvas);
             UnityEngine.Object.Destroy(_coroutineStarter.gameObject);
+        }
+
+        private void ResetGrubsFlag(Scene from, Scene to) {
+            // Invalidate the cache, as the player may be switching to a different
+            // save file.
+            if (to.name == "Menu_Title" || to.name == "Quit_To_Menu") {
+                _grubsRandomized = null;
+            }
+        }
+
+        private bool GrubsRandomized() {
+            if (_grubsRandomized.HasValue) {
+                return _grubsRandomized.Value;
+            }
+            var rando = Type.GetType("RandomizerMod.RandomizerMod, RandomizerMod3.0");
+            if (rando == null) {
+                return false;
+            }
+            var settingsType = Type.GetType("RandomizerMod.SaveSettings, RandomizerMod3.0");
+            if (settingsType == null) {
+                return false;
+            }
+            var randoInstance = rando.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
+            if (randoInstance == null) {
+                return false;
+            }
+            var settings = rando.GetProperty("Settings").GetValue(randoInstance, null);
+            if (settings == null) {
+                return false;
+            }
+            var r = (bool)settingsType.GetProperty("RandomizeGrubs").GetValue(settings, null);
+            // Cache the value so we don't have to run all this reflection again next time the
+            // player breaks a grub jar.
+            _grubsRandomized = r;
+            return r;
         }
 
         /**
@@ -226,7 +265,7 @@ namespace BingoUI
                 // grubs
                 case nameof(pd.grubsCollected):
                 
-                    UpdateGrubs();
+                    UpdateGrubs(!GrubsRandomized());
                     break;
 
                 case nameof(pd.nailSmithUpgrades): // Update on upgrades, else it shows as if we "lost" ore
@@ -618,10 +657,10 @@ namespace BingoUI
             return false;
         }
         
-        private static void DummyRandoAreaGrubSet(string location)
+        private void DummyRandoAreaGrubSet(string location)
         {
             // Increments area grubs. Hooked to checking a grub location in rando, dead otherwise
-            PlayerData.instance.SetInt(nameof(PlayerData.instance.grubsCollected), PlayerData.instance.grubsCollected);
+            UpdateGrubs(true);
         }
 
         #endregion
